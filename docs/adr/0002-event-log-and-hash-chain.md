@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-25
+- **Amended:** 2026-11-26 (the commitment covers the target ID)
 
 ## Context
 
@@ -47,9 +48,10 @@ Every item starts with a `submitted` event, so metrics need no mutable table.
 
 Every `submitted` event, for real and planted items alike, carries:
 
-`commitment = SHA-256(canonical_json([item_id, kind, planted_error_id, salt]))`
+`commitment = SHA-256(canonical_json([item_id, kind, planted_error_id, target_id, salt]))`
 
-where `salt` is 32 random bytes kept in `planted.db.item_registry`.
+where `salt` is 32 random bytes kept in `planted.db.item_registry`, written in the hashed list
+as 64 hex characters. Covering the target ID means a redirected record is detected too.
 
 - A reader of `oversight.db` cannot tell real from planted, because every commitment looks random.
 - Anyone with both files can check every registry row against the chain. If a row was changed

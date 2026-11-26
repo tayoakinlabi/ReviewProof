@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-25
+- **Amended:** 2026-11-26 (target IDs, token hashes, database protections)
 
 ## Context
 
@@ -19,15 +20,27 @@ IT review also favours very few dependencies.
 | `planted.db` | planted_errors, item_registry |
 
 - `items` has **no** `is_planted` or `planted_error_id` column. Both live in a new table,
-  `planted.db.item_registry`: `item_id, kind (real | planted), planted_error_id, salt`.
-  This makes ten tables in total.
+  `planted.db.item_registry`: `item_id, kind (real | planted), planted_error_id, target_id,
+  salt`. This makes ten tables in total.
+- **Target IDs are in the registry, not in `items`.** Planted items have target IDs from a
+  reserved range, so a target ID in `oversight.db` would show which items are planted.
+- `items` stores only a **hash of each token**, so reading the file does not yield tokens. It
+  also records `system_id`, the context the item came from, because a queue moves on to later
+  contexts.
 - **Every** item gets a registry row, real or planted. Execution requires a row that positively
   says `real`. A missing row is an error, never "real".
 - Writing an item takes two files, and SQLite does not guarantee an atomic commit across attached
   databases in WAL mode. The registry row is committed **first**, then the item and its
   `submitted` event. A crash between them leaves a harmless unused registry row. The reverse
   order could not make a planted item executable either, because a missing row blocks execution.
-- `events` has triggers that abort UPDATE and DELETE.
+- `events` has triggers that abort UPDATE and DELETE. An insert trigger also requires each row
+  to extend the chain by exactly one link. Without it, `INSERT OR REPLACE` could overwrite an
+  event without firing the DELETE trigger.
+- `items` and `item_registry` rows are permanent. In `planted_errors`, content cannot change
+  after import, approvals and retirement are set once, rows cannot be deleted, and the author
+  and both approvers must be different people (names compared ignoring case and spaces).
+- `queues` also records the risk rating, `gxp`, feedback timing and an optional `site` for
+  site-level reporting.
 - Schema changes are forward-only migrations tracked in a `schema_version` table in each file.
 - **Runtime dependency: PyYAML only.** The CLI uses `argparse`, reports use the standard library,
   alerts use `smtplib` and `urllib`. LangGraph is an optional extra.

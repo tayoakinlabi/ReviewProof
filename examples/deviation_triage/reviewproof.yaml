@@ -1,0 +1,21 @@
+# Synthetic demo configuration. Every name and value here is invented.
+reserved_target_prefix: "rp-reserved-"
+
+systems:
+  - name: deviation-classifier
+    model_id: demo-model
+    model_version: "1.0"
+    prompt_version: "1"
+    tool_schema_hash: demo-tool-schema
+    intended_use: Proposes a classification for manufacturing deviations. Synthetic demo only.
+
+queues:
+  - name: deviation-triage
+    system: deviation-classifier
+    task: Triage a manufacturing deviation
+    vital_base_risk: A6          # "recommend with context": 2% planted errors
+    min_review_seconds: 30
+    feedback: batched            # or immediate
+    item_schema: item.schema.json
+    gxp: true                    # two approvers for each planted error
+    site: demo-site

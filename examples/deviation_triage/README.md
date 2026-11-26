@@ -10,6 +10,7 @@ demo examples, not classification guidance, and results from this demo are never
 | --- | --- |
 | `item.schema.json` | The format of one proposal, as the reviewer sees it |
 | `items.json` | 20 correct sample proposals |
+| `reviewproof.yaml` | The demo system and queue settings |
 
 The ID of the record that gets written (the *target ID*) is deliberately not part of the item.
 The host passes it to ReviewProof separately and the review screen never shows it

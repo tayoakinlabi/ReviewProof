@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-25
+- **Amended:** 2026-11-26 (what the reserved target range protects against)
 
 ## Context
 
@@ -54,9 +55,18 @@ items. Users write them with synthetic or de-identified values.
 ### Target IDs stay inside the guard
 
 The host passes a real item's `target_id` to `submit()`. The guard stores it and hands it to the
-executor only when the item is real and was approved or edited. Planted errors get an ID from a
-reserved range that the host's executor must reject, as a backstop if the host bypasses
-`execute()`. Item payloads must not contain target IDs, so no review screen shows them.
+executor only when the item is real and was approved or edited. Item payloads must not contain
+target IDs, so no review screen shows them.
+
+Planted errors get an ID from a reserved range that the host's executor must reject. This is a
+backstop against **a fault in ReviewProof**: if a planted item were ever wrongly treated as
+real, the executor would receive a reserved ID and refuse it. The guard also rejects a real
+item submitted with an ID in that range.
+
+It does **not** protect against a host that bypasses `execute()`. Such a host never receives
+the reserved ID, so there is nothing for its executor to reject. The earlier text of this
+record said otherwise. Bypass is covered only by the integration rule and by a test in the
+host's own environment.
 
 ### Execute
 
