@@ -251,6 +251,7 @@ _PLANTED_V1: Migration = [
         planted_error_id  TEXT REFERENCES planted_errors (planted_error_id),
         target_id         TEXT NOT NULL CHECK (trim(target_id) <> ''),
         salt              BLOB NOT NULL CHECK (length(salt) = 32),
+        payload_salt      BLOB NOT NULL CHECK (length(payload_salt) = 32),
         CHECK ((kind = 'planted') = (planted_error_id IS NOT NULL))
     )""",
     *_frozen_rows("item_registry", "item_id"),
@@ -285,6 +286,37 @@ def open_planted_db(path: str | Path) -> sqlite3.Connection:
     not be quietly replaced by an empty one.
     """
     return _open(path, "planted", PLANTED_MIGRATIONS, create=False)
+
+
+def open_readonly(path: str | Path, component: str) -> sqlite3.Connection:
+    """Open an existing database without changing it, for verification and audit.
+
+    No migration is run. ``component`` is ``"oversight"`` or ``"planted"``.
+    """
+    migrations = {"oversight": OVERSIGHT_MIGRATIONS, "planted": PLANTED_MIGRATIONS}[component]
+    path = Path(path).resolve()
+    connection = None
+    try:
+        connection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True, isolation_level=None)
+        connection.row_factory = sqlite3.Row
+        connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+        _check_identity(connection, component, may_initialise=False)
+        _check_not_newer(_current_version(connection), component, migrations)
+    except sqlite3.Error as error:
+        _close(connection)
+        raise StoreError(f"cannot open {component} database at {path}: {error}") from error
+    except BaseException:
+        _close(connection)
+        raise
+    return connection
+
+
+def _check_not_newer(version: int, component: str, migrations: Sequence[Migration]) -> None:
+    if version > len(migrations):
+        raise StoreError(
+            f"{component} database is at schema version {version}, newer than this "
+            f"release supports ({len(migrations)}). Upgrade ReviewProof."
+        )
 
 
 def _open(
@@ -362,11 +394,7 @@ def _migrate(
             )"""
         )
         version = _current_version(connection)
-        if version > len(migrations):
-            raise StoreError(
-                f"{component} database is at schema version {version}, newer than this "
-                f"release supports ({len(migrations)}). Upgrade ReviewProof."
-            )
+        _check_not_newer(version, component, migrations)
         for number, statements in enumerate(migrations[version:], start=version + 1):
             for statement in statements:
                 connection.execute(statement)

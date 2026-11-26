@@ -21,7 +21,7 @@ IT review also favours very few dependencies.
 
 - `items` has **no** `is_planted` or `planted_error_id` column. Both live in a new table,
   `planted.db.item_registry`: `item_id, kind (real | planted), planted_error_id, target_id,
-  salt`. This makes ten tables in total.
+  salt, payload_salt`. This makes ten tables in total.
 - **Target IDs are in the registry, not in `items`.** Planted items have target IDs from a
   reserved range, so a target ID in `oversight.db` would show which items are planted.
 - `items` stores only a **hash of each token**, so reading the file does not yield tokens. It

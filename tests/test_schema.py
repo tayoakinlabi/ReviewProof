@@ -110,6 +110,7 @@ def registry_row(**changes):
         "planted_error_id": None,
         "target_id": "rec-1",
         "salt": bytes(32),
+        "payload_salt": bytes(32),
         **changes,
     }
 
@@ -551,6 +552,7 @@ def test_planted_errors_cannot_be_replaced_or_deleted(planted, row):
         {"kind": "unknown"},
         {"target_id": ""},
         {"salt": b"short"},
+        {"payload_salt": b"short"},
     ],
 )
 def test_malformed_registry_rows_are_refused(planted, change):

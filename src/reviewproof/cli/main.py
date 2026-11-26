@@ -6,6 +6,7 @@ import argparse
 from collections.abc import Sequence
 
 from reviewproof import __version__
+from reviewproof.cli import verify
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -14,11 +15,15 @@ def build_parser() -> argparse.ArgumentParser:
         description="Test whether human reviewers of AI output catch errors.",
     )
     parser.add_argument("--version", action="version", version=f"rp {__version__}")
+    subparsers = parser.add_subparsers(title="commands", metavar="COMMAND")
+    verify.add_parser(subparsers)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    parser.parse_args(argv)
-    parser.print_help()
-    return 0
+    args = parser.parse_args(argv)
+    if not hasattr(args, "run"):
+        parser.print_help()
+        return 0
+    return args.run(args)

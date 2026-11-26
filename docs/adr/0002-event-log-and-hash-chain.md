@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-25
-- **Amended:** 2026-11-26 (the commitment covers the target ID)
+- **Amended:** 2026-11-26 (the commitment covers the target ID; payload hashes are salted)
 
 ## Context
 
@@ -20,8 +20,10 @@ encoded as UTF-8.
 
 - **Event records contain no floats.** Durations are integer milliseconds; rates are never stored.
 - Timestamps are UTC strings in one fixed format: `YYYY-MM-DDTHH:MM:SS.ffffffZ`.
-- Payload hashes use the same function over the payload. Payloads **may** contain numbers with
-  decimals (a dose, for example); NaN and infinity are rejected. Object keys must be strings.
+- Each item's payload hash is `SHA-256(canonical_json([payload_salt, payload]))`, where
+  `payload_salt` is 32 random bytes of its own for that item, written as 64 hex characters and
+  kept in `planted.db.item_registry`. Payloads **may** contain numbers with decimals (a dose,
+  for example); NaN and infinity are rejected. Object keys must be strings.
 - Each event carries a `format_version`, so the canonical form can change without breaking old
   chains.
 
@@ -32,10 +34,13 @@ encoded as UTF-8.
 - `event_id` is a gapless integer sequence and is part of the hashed record.
 - Appending reads the head and inserts inside one `BEGIN IMMEDIATE` transaction, so two writers
   cannot fork the chain.
-- `rp verify` reports the first broken `event_id`, the event count and the head hash.
+- `rp verify` reports the first broken `event_id`, the event count and the head hash. It opens
+  the databases read-only. It also requires the stored `data` text to be in canonical form.
 - The chain alone cannot detect a fully rebuilt database or removal of the newest events. The head
   hash and event count exported to storage the tool cannot write to are what detect those.
-  `rp verify --expect-head` checks that an exported hash is still in the chain.
+  `rp verify --expect-head` checks that the event with the exported number still has the
+  exported hash. `--export-head` writes only after verification succeeds, and never over an
+  existing file.
 
 ### Event types
 
@@ -65,8 +70,7 @@ Metrics read the event log, plus the registry **only after** its commitments hav
 
 - `blocked` and `withdrawn` events show that an item was planted, but only after the decision,
   when the reviewer is due feedback anyway.
-- A planted error reused on several items produces the same payload hash each time, which would
-  reveal it to anyone who can read `oversight.db`. Reviewers must not have that access. Whether to
-  salt payload hashes per item is to be decided when the log writer is built; it would trade this leak against
-  being able to match an original document to its hash without the salt.
+- Payload hashes are salted so that a planted error used on several items does not produce a
+  repeated hash. The cost: matching an original document to its logged hash needs the item's
+  salt, so it needs access to both databases.
 - Event times come from the machine running the SDK; its clock must be controlled.
