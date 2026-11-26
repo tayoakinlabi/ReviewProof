@@ -17,6 +17,25 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+      # PyPI never accepts a filename twice, so stop early with a clear message.
+      - name: Check that this version is not already on PyPI
+        run: |
+          version=$(grep '^__version__ = ' src/reviewproof/__init__.py | cut -d '"' -f 2 || true)
+          if [ -z "$version" ]; then
+            echo "::error::cannot read __version__ from src/reviewproof/__init__.py"
+            exit 1
+          fi
+          url="https://pypi.org/pypi/reviewproof/$version/json"
+          status=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --max-time 30 "$url" || true)
+          case "$status" in
+            404) echo "Version $version is not on PyPI yet." ;;
+            200)
+              echo "::error::reviewproof $version is already on PyPI. Raise __version__ in src/reviewproof/__init__.py before publishing."
+              exit 1 ;;
+            *)
+              echo "::error::could not check PyPI for version $version (HTTP $status)."
+              exit 1 ;;
+          esac
       - run: python -m pip install -e ".[dev]" build twine
       - run: ruff check .
       - run: pytest
