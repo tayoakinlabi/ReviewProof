@@ -292,6 +292,11 @@ class PlantedLibrary:
                 raise ApprovalError(f"queue {planted.queue!r} is no longer configured")
             if planted.retired_at is not None:
                 raise ApprovalError(f"{planted_error_id} is retired")
+            if self._used(planted_error_id):
+                raise ApprovalError(
+                    f"{planted_error_id} has been used, so its approvals are fixed. Retire it "
+                    "and import it again under a new ID."
+                )
             if _person(approver) == _person(planted.author):
                 raise ApprovalError("authors cannot approve their own planted errors")
             if planted.status(queue.gxp) is Status.APPROVED:
@@ -389,6 +394,17 @@ class PlantedLibrary:
             ).fetchall()
         except sqlite3.Error as error:
             raise StoreError(f"cannot read the planted-error library: {error}") from error
+
+    def _used(self, planted_error_id: str) -> bool:
+        try:
+            return (
+                self._db.execute(
+                    "SELECT 1 FROM item_registry WHERE planted_error_id = ?", (planted_error_id,)
+                ).fetchone()
+                is not None
+            )
+        except sqlite3.Error as error:
+            raise StoreError(f"cannot read the item registry: {error}") from error
 
     def _row(self, planted_error_id: str) -> sqlite3.Row | None:
         rows = self._select("WHERE planted_error_id = ?", (planted_error_id,))

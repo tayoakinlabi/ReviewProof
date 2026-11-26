@@ -2,7 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-25
-- **Amended:** 2026-11-26 (the commitment covers the target ID; payload hashes are salted)
+- **Amended:** 2026-11-26 (the commitment covers the target ID and the planted error itself;
+  payload hashes are salted)
 
 ## Context
 
@@ -53,10 +54,20 @@ Every item starts with a `submitted` event, so metrics need no mutable table.
 
 Every `submitted` event, for real and planted items alike, carries:
 
-`commitment = SHA-256(canonical_json([item_id, kind, planted_error_id, target_id, salt]))`
+`commitment = SHA-256(canonical_json([item_id, kind, planted_error_id, target_id, salt,
+fingerprint]))`
 
 where `salt` is 32 random bytes kept in `planted.db.item_registry`, written in the hashed list
 as 64 hex characters. Covering the target ID means a redirected record is detected too.
+
+`fingerprint` is null for a real item. For a planted item it is the SHA-256 of the canonical
+JSON list of these stored `planted_errors` values, in this order: `planted_error_id,
+queue_id, defect_class, defect_field, expected_decision, payload, correct_value, notes,
+reserved_target_id, author, imported_at, approved_by, approved_at, second_approved_by,
+second_approved_at`. So changing the item or how it is scored after use, for example to turn
+a miss into a catch, is detected. Retirement is left out because it happens after use.
+Approvals are included, so they are locked once a planted error has been used. This shows
+that they have not changed since; it does not show that they were genuine.
 
 - A reader of `oversight.db` cannot tell real from planted, because every commitment looks random.
 - Anyone with both files can check every registry row against the chain. If a row was changed

@@ -143,7 +143,7 @@ def planted(tmp_path):
 # ----------------------------------------------------------------- creation and opening
 
 
-def test_fresh_databases_have_the_ten_tables(oversight, planted):
+def test_fresh_databases_have_their_tables(oversight, planted):
     assert tables(oversight) - {"schema_version"} == {
         "systems",
         "queues",
@@ -154,7 +154,11 @@ def test_fresh_databases_have_the_ten_tables(oversight, planted):
         "review_context",
         "traces",
     }
-    assert tables(planted) - {"schema_version"} == {"planted_errors", "item_registry"}
+    assert tables(planted) - {"schema_version"} == {
+        "planted_errors",
+        "item_registry",
+        "gate_shortfalls",
+    }
 
 
 @pytest.mark.parametrize(
@@ -564,6 +568,8 @@ def test_planted_errors_cannot_be_replaced_or_deleted(planted, row):
         {"target_id": ""},
         {"salt": b"short"},
         {"payload_salt": b"short"},
+        {"assigned_reviewer": "r-1"},  # only a planted item is assigned
+        {"kind": "planted", "planted_error_id": "PE-1", "assigned_reviewer": " "},
     ],
 )
 def test_malformed_registry_rows_are_refused(planted, change):
@@ -590,3 +596,14 @@ def test_registry_rows_cannot_be_relabelled_or_redirected(planted, statement):
     with refuses("cannot be replaced"):
         insert(planted, "item_registry", verb="INSERT OR REPLACE", **registry_row())
     assert rows(planted, "item_registry") == before
+
+
+@pytest.mark.parametrize("column", ["approved", "second_approved"])
+def test_approvals_are_fixed_once_a_planted_error_is_used(planted, column):
+    insert(planted, "planted_errors", **planted_row())
+    if column == "second_approved":
+        approve(planted, "qa-1")
+    insert(planted, "item_registry", **registry_row(kind="planted", planted_error_id="PE-1"))
+    with refuses("after use"):
+        approve(planted, "qa-2", column)
+    retire(planted)  # retiring a used planted error is still allowed

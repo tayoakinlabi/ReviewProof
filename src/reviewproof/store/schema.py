@@ -258,9 +258,25 @@ _PLANTED_V1: Migration = [
         target_id         TEXT NOT NULL CHECK (trim(target_id) <> ''),
         salt              BLOB NOT NULL CHECK (length(salt) = 32),
         payload_salt      BLOB NOT NULL CHECK (length(payload_salt) = 32),
-        CHECK ((kind = 'planted') = (planted_error_id IS NOT NULL))
+        -- who the host said would review it, if it said; used to avoid repeats
+        assigned_reviewer TEXT CHECK (trim(assigned_reviewer) <> ''),
+        CHECK ((kind = 'planted') = (planted_error_id IS NOT NULL)),
+        CHECK (assigned_reviewer IS NULL OR kind = 'planted')
     )""",
     *_frozen_rows("item_registry", "item_id"),
+    "CREATE INDEX item_registry_by_planted_error ON item_registry (planted_error_id)",
+    # The log commits to a planted error as it was when first used, approvals included.
+    """CREATE TRIGGER planted_errors_no_approval_after_use
+    BEFORE UPDATE OF approved_by, approved_at, second_approved_by, second_approved_at
+    ON planted_errors
+    WHEN EXISTS (SELECT 1 FROM item_registry WHERE planted_error_id = OLD.planted_error_id)
+    BEGIN SELECT RAISE(ABORT, 'planted_errors: approvals cannot change after use'); END""",
+    # Times a planted error was due and none could be used: the queue ran short (ADR-003).
+    f"""CREATE TABLE gate_shortfalls (
+        shortfall_id  INTEGER PRIMARY KEY,
+        queue_id      TEXT NOT NULL,
+        ts_utc        TEXT NOT NULL CHECK ({_is_timestamp("ts_utc")})
+    )""",
 ]
 
 OVERSIGHT_MIGRATIONS: tuple[Migration, ...] = (_OVERSIGHT_V1,)

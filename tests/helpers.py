@@ -3,7 +3,12 @@
 import contextlib
 
 from reviewproof.models import Decision, EventType, ItemKind
-from reviewproof.store.commitments import new_salt, planted_commitment
+from reviewproof.store.commitments import (
+    FINGERPRINT_COLUMNS,
+    new_salt,
+    planted_commitment,
+    planted_fingerprint,
+)
 
 TS = "2026-11-26T10:00:00.000000Z"
 
@@ -31,7 +36,15 @@ def add_item(log, registry, item_id, kind=ItemKind.REAL, planted_error_id=None):
         "payload_salt) VALUES (?, ?, ?, ?, ?, ?)",
         (item_id, kind.value, planted_error_id, target, salt, new_salt()),
     )
-    commitment = planted_commitment(item_id, kind, planted_error_id, target, salt)
+    fingerprint = None
+    if planted_error_id is not None:
+        row = registry.execute(
+            f"SELECT {', '.join(FINGERPRINT_COLUMNS)} FROM planted_errors "
+            "WHERE planted_error_id = ?",
+            (planted_error_id,),
+        ).fetchone()
+        fingerprint = planted_fingerprint(dict(row))
+    commitment = planted_commitment(item_id, kind, planted_error_id, target, salt, fingerprint)
     return log.append(
         EventType.SUBMITTED, system_id="sys-1", item_id=item_id, data={"commitment": commitment}
     )

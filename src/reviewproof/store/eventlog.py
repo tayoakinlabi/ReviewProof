@@ -16,7 +16,11 @@ from typing import Any
 
 from reviewproof.canonical import canonical_json, sha256_hex, utc_now
 from reviewproof.models import Decision, EventType
-from reviewproof.store.commitments import planted_commitment
+from reviewproof.store.commitments import (
+    FINGERPRINT_COLUMNS,
+    planted_commitment,
+    planted_fingerprint,
+)
 from reviewproof.store.schema import GENESIS_HASH, StoreError
 
 FORMAT_VERSION = 1
@@ -290,10 +294,11 @@ def _check_link(record: Mapping[str, Any], expected_id: int, previous: str) -> s
 def _check_registry(
     planted: sqlite3.Connection, submitted: Mapping[str, tuple[int, Any]]
 ) -> list[str]:
-    """Compare each submitted item's registry row with the commitment in the log.
+    """Compare each submitted item's registry row, and any planted error behind it, with the
+    commitment in the log.
 
     Registry rows without an event are harmless: a crash can leave one (ADR-001). Messages must
-    never say whether an item is real or planted.
+    never say whether an item is real or planted, so every mismatch reads the same.
     """
     errors = []
     for item_id, (event_id, commitment) in submitted.items():
@@ -311,12 +316,26 @@ def _check_registry(
             errors.append(f"{where}: no registry row")
             continue
         try:
-            actual = planted_commitment(item_id, row[0], row[1], row[2], row[3])
-        except (ValueError, TypeError):
+            fingerprint = None if row[1] is None else _fingerprint(planted, row[1])
+            actual = planted_commitment(item_id, row[0], row[1], row[2], row[3], fingerprint)
+        except sqlite3.Error as error:
+            errors.append(f"{where}: the registry cannot be read: {error}")
+            continue
+        except (ValueError, TypeError, KeyError):
             actual = None
         if commitment is None or actual != commitment:
             errors.append(f"{where}: the registry row does not match the log")
     return errors
+
+
+def _fingerprint(planted: sqlite3.Connection, planted_error_id: str) -> str | None:
+    row = planted.execute(
+        f"SELECT {', '.join(FINGERPRINT_COLUMNS)} FROM planted_errors WHERE planted_error_id = ?",
+        (planted_error_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return planted_fingerprint(dict(zip(FINGERPRINT_COLUMNS, row, strict=True)))
 
 
 def _reject_floats(value: Any, where: str) -> None:

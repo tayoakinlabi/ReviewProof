@@ -1,4 +1,4 @@
-"""The two salted hashes that tie ``oversight.db`` to the restricted registry (ADR-002).
+"""The salted hashes that tie ``oversight.db`` to the restricted database (ADR-002).
 
 Both salts are random per item and stored only in ``planted.db``.
 """
@@ -14,9 +14,35 @@ from reviewproof.models import ItemKind
 
 SALT_BYTES = 32
 
+#: Everything about a planted error that is fixed once it is used, in hashing order. These are
+#: the stored column values, so that any change to the stored text is detected. Retirement is
+#: left out because it happens after use.
+FINGERPRINT_COLUMNS = (
+    "planted_error_id",
+    "queue_id",
+    "defect_class",
+    "defect_field",
+    "expected_decision",
+    "payload",
+    "correct_value",
+    "notes",
+    "reserved_target_id",
+    "author",
+    "imported_at",
+    "approved_by",
+    "approved_at",
+    "second_approved_by",
+    "second_approved_at",
+)
+
 
 def new_salt() -> bytes:
     return secrets.token_bytes(SALT_BYTES)
+
+
+def planted_fingerprint(columns: Mapping[str, Any]) -> str:
+    """Hash a ``planted_errors`` row as stored: content, scoring rules and approvals."""
+    return sha256_hex(canonical_json([columns[name] for name in FINGERPRINT_COLUMNS]))
 
 
 def planted_commitment(
@@ -25,13 +51,19 @@ def planted_commitment(
     planted_error_id: str | None,
     target_id: str,
     salt: bytes,
+    fingerprint: str | None = None,
 ) -> str:
-    """Fix an item's registry row in the log without revealing it.
+    """Fix an item's registry row, and any planted error behind it, in the log without
+    revealing either.
 
     Every ``submitted`` event carries one, real and planted alike, so they cannot be told apart.
+    A planted item needs the planted error's ``fingerprint``; a real item has none.
     """
     _check_salt(salt)
-    record = [item_id, ItemKind(kind).value, planted_error_id, target_id, salt.hex()]
+    kind = ItemKind(kind)
+    if (kind is ItemKind.PLANTED) != (fingerprint is not None):
+        raise ValueError("a planted item needs a fingerprint, and a real item must have none")
+    record = [item_id, kind.value, planted_error_id, target_id, salt.hex(), fingerprint]
     return sha256_hex(canonical_json(record))
 
 

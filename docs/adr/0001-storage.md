@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-25
-- **Amended:** 2026-11-26 (target IDs, token hashes, database protections)
+- **Amended:** 2026-11-26 (target IDs, token hashes, database protections; the gate's data)
 
 ## Context
 
@@ -17,11 +17,11 @@ IT review also favours very few dependencies.
 | File | Tables |
 | --- | --- |
 | `oversight.db` | systems, queues, reviewers, items, events, qualifications, review_context, traces |
-| `planted.db` | planted_errors, item_registry |
+| `planted.db` | planted_errors, item_registry, gate_shortfalls |
 
 - `items` has **no** `is_planted` or `planted_error_id` column. Both live in a new table,
   `planted.db.item_registry`: `item_id, kind (real | planted), planted_error_id, target_id,
-  salt, payload_salt`. This makes ten tables in total.
+  salt, payload_salt`.
 - **Target IDs are in the registry, not in `items`.** Planted items have target IDs from a
   reserved range, so a target ID in `oversight.db` would show which items are planted.
 - `items` stores only a **hash of each token**, so reading the file does not yield tokens. It
@@ -44,6 +44,10 @@ IT review also favours very few dependencies.
   planted error counts as approved. Neither can prove who a person is.
 - `queues` also records the risk rating, `gxp`, feedback timing and an optional `site` for
   site-level reporting.
+- For the gate (ADR-003), `item_registry` also has `assigned_reviewer`, set only on planted
+  items when the host says who will review them, and `planted.db` has a third table,
+  `gate_shortfalls`. A planted error's approvals cannot change once the registry shows it
+  has been used.
 - Schema changes are forward-only migrations tracked in a `schema_version` table in each file.
 - **Runtime dependency: PyYAML only.** The CLI uses `argparse`, reports use the standard library,
   alerts use `smtplib` and `urllib`. LangGraph is an optional extra.

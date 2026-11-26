@@ -4,7 +4,8 @@ This guide is for the QA staff who write and approve planted errors, and for the
 loads them.
 
 > **Status:** ReviewProof is pre-release. You can write, check, approve and retire planted errors
-> today. Putting them into a review queue is not built yet. There is no command for these steps
+> today. The part that picks them for a queue exists, but it is not yet connected to your
+> application, so none reaches a reviewer. There is no command for these steps
 > yet, so an engineer runs the short Python examples below.
 
 ## What a planted error is
@@ -263,6 +264,10 @@ target prefix; the same item as another planted error still in use in that queue
 already exists. To correct an imported planted error, retire it and import the new version with a
 **new ID**.
 
+Once a planted error has been used, **its approvals are locked**. If a queue later becomes
+GxP and a used planted error has only one approval, retire it and import it again under a
+new ID.
+
 **Approval:** every planted error needs approval from someone other than its author. A queue
 marked `gxp: true`, which is the default, needs two different approvers. Nothing is used until it
 has the approvals its queue requires.
@@ -283,9 +288,20 @@ keep your formal sign-off in your quality management system.
 
 ## Looking after the library
 
-**Write enough.** A planted error should be shown to a reviewer only once. At a 2% rate, someone
-reviewing 100 items a week meets about two a week, or 16 over eight weeks. No individual score is
-shown below 10 planted errors. Keep a reserve beyond what you expect to use.
+**Write enough.** ReviewProof uses a planted error more than once. It takes one of the least
+used, and never puts a second copy in a queue while one is waiting for a decision. If your system
+says who will review an item, it also skips planted errors that person has already met. If it
+cannot say, as is common with a shared queue, **someone may meet the same one twice**, and
+colleagues may tell each other about it. Only a reviewer's first sight of a planted error is meant
+to count towards their score (scoring is not built yet), so repeats add nothing to what you learn.
+
+Plan for what one reviewer meets. At a 2% rate, someone reviewing 100 items a week meets about
+two a week, or about 16 over eight weeks. The actual number is random and may well be higher or
+lower. No individual score is shown below 10 planted errors. Treat 16 different planted errors as
+a minimum for that reviewer and period, and keep a reserve.
+
+If none can be used when one is due, the queue **runs short**. ReviewProof records each time, so
+check that count and add planted errors when it rises.
 
 **Check realism.** From time to time, ask reviewers which items they suspected were planted. If
 they can pick one out, retire it. Do this without confirming which of their guesses were right.

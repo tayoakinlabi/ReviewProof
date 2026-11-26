@@ -180,6 +180,52 @@ def test_a_changed_registry_row_is_detected(items, oversight_db, registry_db, ch
     assert result.chain_error is None
 
 
+@pytest.mark.parametrize(
+    "change",
+    [
+        # change the scoring rules so that a miss counts as a catch
+        "defect_field = 'g', expected_decision = 'reject'",
+        "expected_decision = 'edit:f'",
+        "defect_class = 'wrong_value'",
+        "payload = '[]'",
+        "author = 'someone-else'",
+        "approved_by = 'forged', approved_at = '2026-11-26T10:00:00.000000Z'",
+        "payload = x'00ff'",
+    ],
+)
+def test_a_planted_error_changed_after_use_is_detected(items, oversight_db, registry_db, change):
+    with triggers_removed(registry_db, "planted_errors"):
+        registry_db.execute(f"UPDATE planted_errors SET {change}")
+    result = verify(oversight_db, registry_db)
+    assert result.registry_errors == (
+        "event 2, item item-b: the registry row does not match the log",
+    )
+
+
+def test_retiring_a_used_planted_error_does_not_break_verification(
+    items, oversight_db, registry_db
+):
+    registry_db.execute(
+        "UPDATE planted_errors SET retired_at = '2026-11-27T10:00:00.000000Z', retired_by = 'qa-1'"
+    )
+    assert verify(oversight_db, registry_db).ok
+
+
+def test_a_deleted_planted_error_is_detected(items, oversight_db, registry_db):
+    registry_db.execute("PRAGMA foreign_keys = OFF")
+    with triggers_removed(registry_db, "planted_errors"):
+        registry_db.execute("DELETE FROM planted_errors")
+    assert len(verify(oversight_db, registry_db).registry_errors) == 1
+
+
+def test_a_missing_planted_error_table_is_reported(items, oversight_db, registry_db):
+    registry_db.execute("PRAGMA foreign_keys = OFF")
+    registry_db.execute("DROP TABLE planted_errors")
+    errors = verify(oversight_db, registry_db).registry_errors
+    assert len(errors) == 1
+    assert "cannot be read" in errors[0]
+
+
 def test_a_real_item_relabelled_as_planted_is_detected(items, oversight_db, registry_db):
     with triggers_removed(registry_db, "item_registry"):
         registry_db.execute(
@@ -197,14 +243,16 @@ def test_a_missing_registry_row_is_detected(items, oversight_db, registry_db):
 
 def test_an_unused_registry_row_is_harmless(items, oversight_db, registry_db):
     registry_db.execute(
-        "INSERT INTO item_registry VALUES ('orphan', 'real', NULL, 't', zeroblob(32), zeroblob(32))"
+        "INSERT INTO item_registry VALUES "
+        "('orphan', 'real', NULL, 't', zeroblob(32), zeroblob(32), NULL)"
     )
     assert verify(oversight_db, registry_db).ok
 
 
 def test_a_submission_without_a_commitment_is_detected(event_log, oversight_db, registry_db):
     registry_db.execute(
-        "INSERT INTO item_registry VALUES ('x', 'real', NULL, 't', zeroblob(32), zeroblob(32))"
+        "INSERT INTO item_registry VALUES "
+        "('x', 'real', NULL, 't', zeroblob(32), zeroblob(32), NULL)"
     )
     event_log.append(EventType.SUBMITTED, system_id="sys-1", item_id="x")
     assert not verify(oversight_db, registry_db).ok
