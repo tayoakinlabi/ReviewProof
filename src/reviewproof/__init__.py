@@ -12,7 +12,7 @@ from reviewproof.feedback import Feedback, Outcome
 from reviewproof.guard import ExecutionResult
 from reviewproof.models import Decision, Item, Ticket
 
-__version__ = "0.0.0"
+__version__ = "0.1.0"
 
 __all__ = [
     "Decision",
