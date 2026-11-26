@@ -151,13 +151,13 @@ def test_fresh_databases_have_their_tables(oversight, planted):
         "items",
         "events",
         "qualifications",
-        "review_context",
-        "traces",
     }
     assert tables(planted) - {"schema_version"} == {
         "planted_errors",
         "item_registry",
         "gate_shortfalls",
+        "review_context",
+        "traces",
     }
 
 

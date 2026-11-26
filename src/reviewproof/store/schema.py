@@ -142,24 +142,6 @@ _OVERSIGHT_V1: Migration = [
         passed       INTEGER NOT NULL CHECK (passed IN (0, 1)),
         ts_utc       TEXT NOT NULL CHECK ({_is_timestamp("ts_utc")})
     )""",
-    f"""CREATE TABLE review_context (
-        context_id     INTEGER PRIMARY KEY,
-        item_id        TEXT NOT NULL REFERENCES items (item_id),
-        reviewer_id    TEXT NOT NULL REFERENCES reviewers (reviewer_id),
-        shown_sources  TEXT NOT NULL,
-        shown_steps    TEXT NOT NULL,
-        shown_fields   TEXT NOT NULL,
-        manifest_hash  TEXT NOT NULL CHECK ({_is_hash("manifest_hash")})
-    )""",
-    f"""CREATE TABLE traces (
-        item_id       TEXT NOT NULL REFERENCES items (item_id),
-        step_id       TEXT NOT NULL,
-        step_type     TEXT NOT NULL,
-        inputs_hash   TEXT CHECK ({_is_hash("inputs_hash")}),
-        outputs_hash  TEXT CHECK ({_is_hash("outputs_hash")}),
-        ts_utc        TEXT CHECK ({_is_timestamp("ts_utc")}),
-        PRIMARY KEY (item_id, step_id)
-    )""",
 ]
 
 # --------------------------------------------------------------------------- planted.db
@@ -271,6 +253,36 @@ _PLANTED_V1: Migration = [
     ON planted_errors
     WHEN EXISTS (SELECT 1 FROM item_registry WHERE planted_error_id = OLD.planted_error_id)
     BEGIN SELECT RAISE(ABORT, 'planted_errors: approvals cannot change after use'); END""",
+    # What each reviewer's screen showed, and the agent's steps behind each item. Here and not
+    # in oversight.db because planted items have no trace, which would give them away.
+    f"""CREATE TABLE review_context (
+        context_id     INTEGER PRIMARY KEY,
+        item_id        TEXT NOT NULL REFERENCES item_registry (item_id),
+        reviewer_id    TEXT NOT NULL,
+        shown_sources  TEXT NOT NULL,
+        shown_steps    TEXT NOT NULL,
+        shown_fields   TEXT NOT NULL,
+        manifest_hash  TEXT NOT NULL CHECK ({_is_hash("manifest_hash")}),
+        ts_utc         TEXT NOT NULL CHECK ({_is_timestamp("ts_utc")})
+    )""",
+    *_frozen_rows("review_context", "context_id"),
+    "CREATE INDEX review_context_by_item ON review_context (item_id)",
+    f"""CREATE TABLE traces (
+        item_id       TEXT NOT NULL REFERENCES item_registry (item_id),
+        step_id       TEXT NOT NULL,
+        step_type     TEXT NOT NULL,
+        inputs_hash   TEXT CHECK ({_is_hash("inputs_hash")}),
+        outputs_hash  TEXT CHECK ({_is_hash("outputs_hash")}),
+        ts_utc        TEXT CHECK ({_is_timestamp("ts_utc")}),
+        PRIMARY KEY (item_id, step_id)
+    )""",
+    """CREATE TRIGGER traces_no_update BEFORE UPDATE ON traces
+    BEGIN SELECT RAISE(ABORT, 'traces: rows cannot be changed'); END""",
+    """CREATE TRIGGER traces_no_delete BEFORE DELETE ON traces
+    BEGIN SELECT RAISE(ABORT, 'traces: rows cannot be deleted'); END""",
+    """CREATE TRIGGER traces_no_replace BEFORE INSERT ON traces
+    WHEN EXISTS (SELECT 1 FROM traces WHERE item_id = NEW.item_id AND step_id = NEW.step_id)
+    BEGIN SELECT RAISE(ABORT, 'traces: rows cannot be replaced'); END""",
     # Times a planted error was due and none could be used: the queue ran short (ADR-003).
     f"""CREATE TABLE gate_shortfalls (
         shortfall_id  INTEGER PRIMARY KEY,

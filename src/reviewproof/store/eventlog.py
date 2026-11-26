@@ -15,11 +15,15 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from reviewproof.canonical import canonical_json, sha256_hex, utc_now
+from reviewproof.capture import context_digest, trace_digest
 from reviewproof.models import Decision, EventType
-from reviewproof.store.commitments import (
-    FINGERPRINT_COLUMNS,
-    planted_commitment,
-    planted_fingerprint,
+from reviewproof.store.registry import (
+    CONTEXT_COLUMNS,
+    TRACE_COLUMNS,
+    MissingEntryError,
+    RegistryEntry,
+    commitment_of,
+    read_entry,
 )
 from reviewproof.store.schema import GENESIS_HASH, StoreError
 
@@ -184,6 +188,51 @@ def compute_hash(record: Mapping[str, Any]) -> str:
     return sha256_hex(record["prev_hash"].encode("ascii") + canonical_json(body))
 
 
+class IntegrityError(StoreError):
+    """An event that something is about to rely on does not hold up."""
+
+
+def item_events(connection: sqlite3.Connection, item_id: str) -> list[dict[str, Any]]:
+    """An item's events in order, each checked before it is relied on: its hash, and its links
+    to the events on both sides. ``data`` is returned parsed.
+
+    This is a local check, cheap enough to run before every execution. Someone who rewrites the
+    whole log from an event onwards passes it; ``verify`` with an exported head catches that.
+    """
+    try:
+        rows = connection.execute(
+            f"SELECT {', '.join(_COLUMNS)} FROM events WHERE item_id = ? ORDER BY event_id",
+            (item_id,),
+        ).fetchall()
+        checked = []
+        for row in rows:
+            record = dict(zip(_COLUMNS, row, strict=True))
+            _check_in_place(connection, record)
+            checked.append({**record, "data": json.loads(record["data"])})
+    except sqlite3.Error as error:
+        raise StoreError(f"cannot read the event log: {error}") from error
+    return checked
+
+
+def _check_in_place(connection: sqlite3.Connection, record: Mapping[str, Any]) -> None:
+    number = record["event_id"]
+    previous = GENESIS_HASH
+    if number > 1:
+        before = connection.execute(
+            "SELECT hash FROM events WHERE event_id = ?", (number - 1,)
+        ).fetchone()
+        previous = None if before is None else before[0]
+    problem = _check_link(record, number, previous)
+    if problem:
+        raise IntegrityError(problem)
+    after = connection.execute(
+        "SELECT event_id, prev_hash FROM events WHERE event_id > ? ORDER BY event_id LIMIT 1",
+        (number,),
+    ).fetchone()
+    if after is not None and (after[0] != number + 1 or after[1] != record["hash"]):
+        raise IntegrityError(f"the event after event {number} does not follow it")
+
+
 def verify(
     oversight: sqlite3.Connection,
     planted: sqlite3.Connection | None = None,
@@ -196,7 +245,8 @@ def verify(
     """
     count, previous = 0, GENESIS_HASH
     chain_error = broken_at = anchor_error = None
-    submitted: dict[str, tuple[int, Any]] = {}
+    submitted: dict[str, tuple[int, Mapping[str, Any]]] = {}
+    shown: list[tuple[int, str, str, Mapping[str, Any]]] = []
     duplicates: list[str] = []
     hash_at_expected = GENESIS_HASH if expected and expected.event_count == 0 else None
 
@@ -220,8 +270,10 @@ def verify(
                 if item_id in submitted:
                     duplicates.append(f"event {count}: item {item_id} was submitted twice")
                 else:
-                    commitment = json.loads(record["data"]).get("commitment")
-                    submitted[item_id] = (count, commitment)
+                    submitted[item_id] = (count, json.loads(record["data"]))
+            elif record["type"] == EventType.SHOWN.value:
+                data = json.loads(record["data"])
+                shown.append((count, record["item_id"], record["reviewer_id"], data))
     except sqlite3.Error as error:
         broken_at = count + 1
         chain_error = f"the log cannot be read after {count} verified events: {error}"
@@ -242,7 +294,7 @@ def verify(
 
     registry_errors = list(duplicates)
     if planted is not None:
-        registry_errors += _check_registry(planted, submitted)
+        registry_errors += _check_registry(planted, submitted, shown)
 
     return VerifyResult(
         head=Head(count, previous),
@@ -292,50 +344,78 @@ def _check_link(record: Mapping[str, Any], expected_id: int, previous: str) -> s
 
 
 def _check_registry(
-    planted: sqlite3.Connection, submitted: Mapping[str, tuple[int, Any]]
+    planted: sqlite3.Connection,
+    submitted: Mapping[str, tuple[int, Mapping[str, Any]]],
+    shown: list[tuple[int, str, str, Mapping[str, Any]]],
 ) -> list[str]:
-    """Compare each submitted item's registry row, and any planted error behind it, with the
-    commitment in the log.
+    """Compare what the restricted database holds for each item with what the log committed to:
+    the registry row and any planted error behind it, the trace, and each review context.
 
-    Registry rows without an event are harmless: a crash can leave one (ADR-001). Messages must
-    never say whether an item is real or planted, so every mismatch reads the same.
+    Rows without an event are harmless: a crash can leave one (ADR-001). Messages must never
+    say whether an item is real or planted, so every mismatch reads the same.
     """
     errors = []
-    for item_id, (event_id, commitment) in submitted.items():
+    entries: dict[str, RegistryEntry] = {}
+    for item_id, (event_id, data) in submitted.items():
         where = f"event {event_id}, item {item_id}"
         try:
-            row = planted.execute(
-                "SELECT kind, planted_error_id, target_id, salt FROM item_registry "
-                "WHERE item_id = ?",
-                (item_id,),
-            ).fetchone()
-        except sqlite3.Error as error:
-            errors.append(f"{where}: the registry cannot be read: {error}")
+            entry = read_entry(planted, item_id)
+            if data.get("commitment") != commitment_of(planted, entry):
+                errors.append(f"{where}: the registry row does not match the log")
+                continue
+            entries[item_id] = entry
+            if "trace_hash" in data and data["trace_hash"] != _stored_trace_digest(planted, entry):
+                errors.append(f"{where}: the trace records do not match the log")
+        except (StoreError, sqlite3.Error, ValueError, TypeError) as error:
+            errors.append(f"{where}: {_problem(error)}")
+    for event_id, item_id, reviewer, data in shown:
+        entry = entries.get(item_id)
+        if entry is None or "context_hash" not in data:
             continue
-        if row is None:
-            errors.append(f"{where}: no registry row")
-            continue
+        where = f"event {event_id}, item {item_id}"
         try:
-            fingerprint = None if row[1] is None else _fingerprint(planted, row[1])
-            actual = planted_commitment(item_id, row[0], row[1], row[2], row[3], fingerprint)
-        except sqlite3.Error as error:
-            errors.append(f"{where}: the registry cannot be read: {error}")
-            continue
-        except (ValueError, TypeError, KeyError):
-            actual = None
-        if commitment is None or actual != commitment:
-            errors.append(f"{where}: the registry row does not match the log")
+            if not _context_matches(planted, entry, reviewer, data["context_hash"]):
+                errors.append(f"{where}: the review context does not match the log")
+        except (StoreError, sqlite3.Error, ValueError, TypeError) as error:
+            errors.append(f"{where}: {_problem(error)}")
     return errors
 
 
-def _fingerprint(planted: sqlite3.Connection, planted_error_id: str) -> str | None:
-    row = planted.execute(
-        f"SELECT {', '.join(FINGERPRINT_COLUMNS)} FROM planted_errors WHERE planted_error_id = ?",
-        (planted_error_id,),
-    ).fetchone()
-    if row is None:
-        return None
-    return planted_fingerprint(dict(zip(FINGERPRINT_COLUMNS, row, strict=True)))
+def _problem(error: Exception) -> str:
+    """Only these three messages. A more detailed one could differ between real and planted."""
+    if isinstance(error, sqlite3.Error) or isinstance(error.__cause__, sqlite3.Error):
+        return "the registry cannot be read"
+    if isinstance(error, MissingEntryError):
+        return "no registry row"
+    return "the registry row does not match the log"
+
+
+def _stored_trace_digest(planted: sqlite3.Connection, entry: RegistryEntry) -> str:
+    rows = planted.execute(
+        f"SELECT {', '.join(TRACE_COLUMNS)} FROM traces WHERE item_id = ?", (entry.item_id,)
+    ).fetchall()
+    records = [dict(zip(TRACE_COLUMNS, row, strict=True)) for row in rows]
+    return trace_digest(records, entry.payload_salt)
+
+
+def _context_matches(
+    planted: sqlite3.Connection, entry: RegistryEntry, reviewer: str, expected: str
+) -> bool:
+    if expected == context_digest(None, entry.payload_salt):
+        return True  # the host gave no context for this showing
+    rows = planted.execute(
+        f"SELECT {', '.join(CONTEXT_COLUMNS)} FROM review_context "
+        "WHERE item_id = ? AND reviewer_id = ?",
+        (entry.item_id, reviewer),
+    ).fetchall()
+    for row in rows:
+        manifest = {
+            name.removeprefix("shown_"): json.loads(value)
+            for name, value in zip(CONTEXT_COLUMNS, row, strict=True)
+        }
+        if context_digest(manifest, entry.payload_salt) == expected:
+            return True
+    return False
 
 
 def _reject_floats(value: Any, where: str) -> None:

@@ -71,6 +71,15 @@ class ItemSchema:
         subschema = self._schema["properties"][name]
         return list(subschema.get("enum", [])) if isinstance(subschema, dict) else []
 
+    def arrange(self, instance: Any) -> Any:
+        """Return a copy with object keys in the order the schema lists them, then the rest
+        by name.
+
+        The order depends only on the schema and the key names, never on where the item came
+        from. Real and planted items pass through here, so field order cannot tell them apart.
+        """
+        return _arrange(self._schema, instance)
+
     def errors(self, instance: Any, where: str = "payload") -> list[str]:
         """Return every way ``instance`` breaks the schema. An empty list means it is valid."""
         found: list[str] = []
@@ -182,6 +191,19 @@ class ItemSchema:
             else:
                 extra = schema.get("additionalProperties", True)
                 self._validate(extra, value, f"{where}.{name}", found)
+
+
+def _arrange(schema: Any, instance: Any) -> Any:
+    known = schema if isinstance(schema, dict) else {}
+    if isinstance(instance, dict):
+        properties = known.get("properties", {})
+        names = [name for name in properties if name in instance]
+        names += sorted(name for name in instance if name not in properties)
+        other = known.get("additionalProperties")
+        return {name: _arrange(properties.get(name, other), instance[name]) for name in names}
+    if isinstance(instance, list):
+        return [_arrange(known.get("items"), element) for element in instance]
+    return instance
 
 
 def _check_size(

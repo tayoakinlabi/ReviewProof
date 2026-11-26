@@ -6,7 +6,7 @@ Both salts are random per item and stored only in ``planted.db``.
 from __future__ import annotations
 
 import secrets
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from reviewproof.canonical import canonical_json, sha256_hex
@@ -74,7 +74,35 @@ def payload_hash(payload: Mapping[str, Any], payload_salt: bytes) -> str:
     Matching a document to a logged hash therefore needs the salt from the registry.
     """
     _check_salt(payload_salt)
-    return sha256_hex(canonical_json([payload_salt.hex(), dict(payload)]))
+    return sha256_hex(canonical_json([payload_salt.hex(), _same_numbers(dict(payload))]))
+
+
+def field_hashes(
+    payload: Mapping[str, Any], payload_salt: bytes, names: Iterable[str] = ()
+) -> dict[str, str]:
+    """A salted hash for each top-level field, so that edits can be found without storing the
+    item. ``names`` adds fields to include even when absent: every property the schema lists,
+    so that leaving one out does not show.
+    """
+    _check_salt(payload_salt)
+    found = {}
+    for name in sorted({*names, *payload}):
+        value = [_same_numbers(payload[name])] if name in payload else []
+        found[name] = sha256_hex(canonical_json([payload_salt.hex(), "field", name, value]))
+    return found
+
+
+def _same_numbers(value: Any) -> Any:
+    """Write 10.0 as 10. JavaScript and others make no difference between them, so a review
+    screen that sends an item back must not appear to have changed it.
+    """
+    if isinstance(value, float) and value.is_integer() and abs(value) < 2**53:
+        return int(value)
+    if isinstance(value, list):
+        return [_same_numbers(element) for element in value]
+    if isinstance(value, Mapping):
+        return {key: _same_numbers(element) for key, element in value.items()}
+    return value
 
 
 def _check_salt(salt: bytes) -> None:

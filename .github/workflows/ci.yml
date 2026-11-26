@@ -24,6 +24,13 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest
+      - name: At least 90% coverage of each safety-critical file
+        shell: bash
+        run: |
+          for file in guard gate planted store/eventlog store/registry; do
+            echo "== $file"
+            coverage report --fail-under=90 "src/reviewproof/$file.py"
+          done
 
   dco:
     if: github.event_name == 'pull_request'

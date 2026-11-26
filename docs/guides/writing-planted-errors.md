@@ -4,8 +4,8 @@ This guide is for the QA staff who write and approve planted errors, and for the
 loads them.
 
 > **Status:** ReviewProof is pre-release. You can write, check, approve and retire planted errors
-> today. The part that picks them for a queue exists, but it is not yet connected to your
-> application, so none reaches a reviewer. There is no command for these steps
+> today, put them into a review queue, record decisions, and block them from execution.
+> Reports and scores are not built yet, and nothing here is pre-validated. There is no command for these steps
 > yet, so an engineer runs the short Python examples below.
 
 ## What a planted error is
@@ -57,8 +57,14 @@ harder. Omissions are often the hardest to see, so do not leave them out.
   errors with dates go stale, so replace them regularly.
 - **Do not reuse what reviewers have seen.** A near-copy of last week's deviation invites
   comparison.
+- **Do not worry about field order.** ReviewProof puts the fields of every item, real or
+  planted, in the order your item format lists them. Do write numbers and lists the way your
+  system does, including the order of list entries.
 - **Match the style.** Use the length, tone and habits of your system's real output. If you write
   noticeably better or worse than it does, reviewers will learn the difference.
+- **Put everything the reviewer needs in the item.** A planted item has no agent trace,
+  sources or record history. If the review screen shows such things for real items, planted
+  ones stand out.
 - **Never put a target ID in the item.** The ID of the record to be written is not part of an
   item. ReviewProof gives each planted error its own ID from a reserved range, and refuses any
   item containing that range's prefix.
@@ -87,7 +93,7 @@ as a date object, not as text, and `1.10` becomes the number 1.1.
 | The reviewer | Result |
 | --- | --- |
 | Rejects the item | Catch |
-| Edits it, and the edit changes the `defect_field` | Catch |
+| Edits it, and the edit changes the `defect_field` (ReviewProof checks the change itself; it does not check that the new value is right) | Catch |
 | Edits it, but leaves the `defect_field` alone | Miss |
 | Approves it | Miss |
 
@@ -302,6 +308,11 @@ a minimum for that reviewer and period, and keep a reserve.
 
 If none can be used when one is due, the queue **runs short**. ReviewProof records each time, so
 check that count and add planted errors when it rises.
+
+**Feedback.** Reviewers can be told the outcome of each planted error they handled, at once
+or in batches, as set for the queue. Feedback shows them the item. Because planted errors
+are reused, someone could describe it to colleagues, so consider batched feedback and retire
+items that become talked about.
 
 **Check realism.** From time to time, ask reviewers which items they suspected were planted. If
 they can pick one out, retire it. Do this without confirming which of their guesses were right.

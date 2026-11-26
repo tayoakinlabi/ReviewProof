@@ -3,7 +3,8 @@
 - **Status:** Accepted
 - **Date:** 2026-11-25
 - **Amended:** 2026-11-26 (the commitment covers the target ID and the planted error itself;
-  payload hashes are salted)
+  payload hashes are salted; per-field hashes, and numbers hashed by value;
+  trace and review-context hashes; checking events before relying on them)
 
 ## Context
 
@@ -25,6 +26,20 @@ encoded as UTF-8.
   `payload_salt` is 32 random bytes of its own for that item, written as 64 hex characters and
   kept in `planted.db.item_registry`. Payloads **may** contain numbers with decimals (a dose,
   for example); NaN and infinity are rejected. Object keys must be strings.
+- In payload and field hashes, a decimal with no fractional part is written as a whole number
+  (`10.0` as `10`). JavaScript and others make no difference between them, so a review screen
+  that sends an item back must not appear to have changed it.
+- Every `submitted` event's data holds `commitment`, `payload_hash` and `field_hashes`: for
+  each top-level field, `SHA-256(canonical_json([payload_salt, "field", name, [value]]))`,
+  with an empty list when the field is absent. It covers every property in the item schema
+  and every other field present. Real and planted items are treated alike. An edit's
+  `decided` event holds `edited_fields`, which ReviewProof works out by comparing these, and
+  `final_payload_hash`.
+- Every `submitted` event also holds `trace_hash`, a salted hash of the item's stored trace
+  records, or of an empty list. Every `shown` event holds `context_hash`, a salted hash of
+  the host's account of the screen, or of its absence. All items have both, so neither
+  shows which have a trace. `rp verify --planted` checks the restricted records against
+  them. A trace keeps only each step's ID, type, time and salted input and output hashes.
 - Each event carries a `format_version`, so the canonical form can change without breaking old
   chains.
 
@@ -42,6 +57,15 @@ encoded as UTF-8.
   `rp verify --expect-head` checks that the event with the exported number still has the
   exported hash. `--export-head` writes only after verification succeeds, and never over an
   existing file.
+
+### Checking before relying
+
+Before an execution, an edit or feedback, each event of that item is checked: its hash, and
+its links to the events on either side. This is cheap and catches an edited entry, but not a
+log rewritten from that entry onwards. Only `rp verify` with an exported head catches that.
+
+`blocked` events hold a `reason`: `planted`, `payload_changed`, `check_failed` or
+`reserved_target`. `withdrawn` events hold the `outcome`, `catch` or `miss`.
 
 ### Event types
 

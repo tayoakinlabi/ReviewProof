@@ -3,7 +3,9 @@
 - **Status:** Accepted
 - **Date:** 2026-11-25
 - **Amended:** 2026-11-26 (what the reserved target range protects against; planted errors
-  are reused; a due planted error is released at once, not after a delay)
+  are reused; a due planted error is released at once, not after a delay; ticket field order;
+  edits are worked out by ReviewProof; execution results and failures, feedback, context
+  changes, adapters, and what a review screen may show)
 
 ## Context
 
@@ -27,12 +29,30 @@ for ticket in tickets:                      # one or two; the host cannot tell w
 
 ov.shown(token, reviewer="r-104", context=shown_manifest)
 ov.decided(token, reviewer="r-104", decision="approve")   # an edit also passes
-                                                         # edited_fields and final_payload
-ov.execute(token, payload=final_payload, executor=write_to_qms)   # executor(target_id, payload)
+                                                         # final_payload
+result = ov.execute(token, payload=final_payload,
+                    executor=write_to_qms)   # executor(target_id, payload)
 ```
 
 A ticket holds only an opaque random token and the payload. It has no planted marker and no
 target ID. The host calls `execute()` for every approved or edited ticket in the same way.
+The two rows and events of a pair are also written in random order.
+
+**Field order.** Every ticket's payload, real or planted, is rebuilt in the order the item
+schema lists its properties, then by name. Without this, a planted item stored with sorted
+fields would reach a screen in a different order from real items, which keep the host's
+order. If the schema cannot be loaded, nothing is planted.
+
+**What a review screen may show.** Everything a reviewer sees about an item must come from
+its ticket's payload. A planted item has no agent trace, retrieved sources or record
+history behind it, so a screen that shows those for real items would expose every planted
+one. `shown(context=...)` records the names of what was on screen. In v1, a host whose
+screen must show material beyond the payload cannot use planted errors on that queue.
+
+**Real work comes first.** A real item that does not match the schema is accepted, with a
+warning. If the planted-error side fails, for example because the library is damaged, the
+real item is accepted without a planted one and an error is logged that names no planted
+error. The databases themselves must be available: without them, submission fails.
 
 **The host must not reveal which tickets arrived together.** When two arrive at once, a
 reviewer who can see that knows one of them is planted. The host must not show when an item
@@ -54,6 +74,16 @@ items. Users write them with synthetic or de-identified values.
 - `defect_field` is a top-level property named in the item schema.
 - Identifiers shown in the payload, such as a deviation number, must look like real ones and must
   not collide with them.
+
+### Recording a review
+
+- `shown()` may happen more than once, and for more than one reviewer, until a decision.
+- `decided()` happens once per item, by a reviewer for whom `shown()` was recorded.
+- An edit passes `final_payload`, the whole item as edited. ReviewProof works out which
+  top-level fields changed by comparing field hashes (ADR-002), and does not rely on the
+  host to say. `edited_fields` is optional and, if given, must agree. An edit that changes
+  nothing is refused.
+- Every refusal is the same for real and planted items.
 
 ### Target IDs stay inside the guard
 
@@ -82,18 +112,56 @@ host's own environment.
    final payload passed to `decided()`. A payload changed after approval is not executed.
 5. The item has no earlier `execute_requested` event.
 
-Any error while checking, including an unavailable registry, means **nothing runs**.
-`execute_requested` is logged before the executor is called, so each item runs at most once. After
-a crash between the two, a person investigates; the guard does not retry.
+Any error while checking, including an unavailable registry or one nobody foresaw, means
+**nothing runs**. The events relied on are checked first (ADR-002), and there must be exactly
+one decision. Check 3 also looks for the ID among all planted errors' reserved IDs, so it does
+not depend on the registry's `real` being right or on the configured prefix. Every check that
+reads a database comes before `execute_requested`, so an outage never uses up an item's one
+attempt. Just before the executor is called, the prefix test is repeated without any database.
+
+`execute_requested` is logged before the executor is called, so each item runs at most once.
+After a crash between the two, a person investigates; the guard does not retry. **An executor
+that raises is not retried either**, because it may have written part of the change. This is
+logged as `execute_failed`, with the type of error only. A refused check, such as a changed
+payload or an outage, does not use up the one attempt.
+
+`execute()` returns whether the executor ran and what it returned. It raises `GuardError`
+when a check fails, meaning nothing ran. If the executor ran but that cannot be logged, it
+raises `UnrecordedExecutionError`, which is deliberately a different kind of error. Error
+messages and the host's logs never name a planted error.
 
 An approved planted error is a no-op, logged as `blocked` then `withdrawn`. The host does not need
 the payload to be stored: it supplies it again at execution.
 
 ### Scoring a planted error
 
-- **Catch:** the decision is `reject`, or it is `edit` and the edited fields include
-  `defect_field`.
+- **Catch:** the decision is `reject`, or it is `edit` and the fields ReviewProof found
+  changed include `defect_field`. This shows the field was changed, not that the new value
+  is right.
 - **Miss:** anything else, including an edit that leaves the defect field unchanged.
+
+### Feedback
+
+`feedback(reviewer)` returns the outcome of each planted error that reviewer has decided on,
+once each, and logs `feedback_sent` first. On an `immediate` queue the host calls it after
+each decision. On a `batched` queue it returns nothing unless the host's scheduled job passes
+`batch=True`. Feedback shows the planted item, so with reuse a reviewer could describe it to
+colleagues; QA should weigh that when choosing the timing.
+
+### Changes to the AI system
+
+A change of model ID, model version, prompt version or tool-schema hash is a new context,
+whether made with `register_system()` or in the settings file. Going back to an earlier one
+counts too. Everyone who reviewed or qualified under another context of that system is
+marked `requalification_required`, and `context_registered` lists them. The settings file
+wins when ReviewProof next opens. Status is one value per reviewer; per-system
+qualification comes with qualification mode.
+
+### Adapters
+
+`run_review()` takes each ticket through an approval function that answers at once. It asks
+twice when two tickets come back; the host must not show where one submission ends. The
+`gate` decorator passes every ticket to a callback.
 
 ### Reusing planted errors
 

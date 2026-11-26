@@ -2,7 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-25
-- **Amended:** 2026-11-26 (target IDs, token hashes, database protections; the gate's data)
+- **Amended:** 2026-11-26 (target IDs, token hashes, database protections; the gate's data;
+  traces and review context moved to the restricted database)
 
 ## Context
 
@@ -16,8 +17,12 @@ IT review also favours very few dependencies.
 
 | File | Tables |
 | --- | --- |
-| `oversight.db` | systems, queues, reviewers, items, events, qualifications, review_context, traces |
-| `planted.db` | planted_errors, item_registry, gate_shortfalls |
+| `oversight.db` | systems, queues, reviewers, items, events, qualifications |
+| `planted.db` | planted_errors, item_registry, gate_shortfalls, review_context, traces |
+
+`planted.db` is the **restricted database**. `traces` and `review_context` are in it because
+only real items have an agent trace. In `oversight.db`, which items had trace rows, or what
+their screens showed, would give away which were planted. Their rows cannot be changed.
 
 - `items` has **no** `is_planted` or `planted_error_id` column. Both live in a new table,
   `planted.db.item_registry`: `item_id, kind (real | planted), planted_error_id, target_id,
