@@ -15,4 +15,4 @@ step in a tamper-evident log, and reports how many were caught.
 
 ## License
 
-Apache 2.0. See [LICENSE](LICENSE).
+Apache 2.0. See [LICENSE](https://github.com/tayoakinlabi/ReviewProof/blob/main/LICENSE).
