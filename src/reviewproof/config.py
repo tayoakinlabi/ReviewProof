@@ -14,9 +14,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-import yaml
-
 from reviewproof.models import FeedbackTiming, OversightContext, RiskCategory
+from reviewproof.strictload import LoadError, load_file
 
 #: Planted share of all items shown, by risk tier. Proposed defaults, to be calibrated in a pilot.
 TIER_RATES: tuple[float, ...] = (0.01, 0.02, 0.03)
@@ -87,13 +86,9 @@ def load_config(path: str | Path) -> Config:
     """Load and validate a configuration file. Relative paths in it are relative to the file."""
     path = Path(path)
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as error:
-        raise ConfigError(f"cannot read {path}: {error}") from error
-    try:
-        data = yaml.load(text, Loader=_UniqueKeyLoader)  # noqa: S506 - a SafeLoader subclass
-    except yaml.YAMLError as error:
-        raise ConfigError(f"{path} is not valid YAML: {error}") from error
+        data = load_file(path)
+    except LoadError as error:
+        raise ConfigError(str(error)) from error
     return parse_config(data, base_dir=path.parent)
 
 
@@ -241,28 +236,3 @@ def _choice(value: Any, enum: type, where: str) -> Any:
     except ValueError:
         allowed = ", ".join(member.value for member in enum)
         raise ConfigError(f"{where} must be one of: {allowed}") from None
-
-
-class _UniqueKeyLoader(yaml.SafeLoader):
-    """SafeLoader that rejects repeated keys instead of silently keeping the last one."""
-
-
-def _construct_unique_mapping(loader: _UniqueKeyLoader, node: yaml.MappingNode) -> dict:
-    seen = set()
-    for key_node, _ in node.value:
-        key = loader.construct_object(key_node, deep=True)
-        if not isinstance(key, (str, int, float, bool, type(None))):
-            raise yaml.constructor.ConstructorError(
-                None, None, "keys must be simple values", key_node.start_mark
-            )
-        if key in seen:
-            raise yaml.constructor.ConstructorError(
-                None, None, f"repeated key {key!r}", key_node.start_mark
-            )
-        seen.add(key)
-    return loader.construct_mapping(node, deep=True)
-
-
-_UniqueKeyLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_unique_mapping
-)

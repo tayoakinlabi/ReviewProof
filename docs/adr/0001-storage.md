@@ -39,6 +39,9 @@ IT review also favours very few dependencies.
 - `items` and `item_registry` rows are permanent. In `planted_errors`, content cannot change
   after import, approvals and retirement are set once, rows cannot be deleted, and the author
   and both approvers must be different people (names compared ignoring case and spaces).
+  Retirement records who did it. The database's name comparison is rough (it ignores case only
+  for ASCII), so the library repeats the check with full Unicode normalisation before any
+  planted error counts as approved. Neither can prove who a person is.
 - `queues` also records the risk rating, `gxp`, feedback timing and an optional `site` for
   site-level reporting.
 - Schema changes are forward-only migrations tracked in a `schema_version` table in each file.

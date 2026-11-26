@@ -421,6 +421,16 @@ def approve(db, who, column="approved"):
     db.execute(f"UPDATE planted_errors SET {column}_by = ?, {column}_at = ?", (who, TS))
 
 
+def retire(db):
+    db.execute("UPDATE planted_errors SET retired_at = ?, retired_by = 'qa-1'", (TS,))
+
+
+def test_retirement_needs_a_name(planted):
+    insert(planted, "planted_errors", **planted_row())
+    with refuses():
+        planted.execute("UPDATE planted_errors SET retired_at = ?", (TS,))
+
+
 def test_database_accepts_every_defect_class_and_item_kind(planted):
     for number, defect in enumerate(DefectClass):
         insert(
@@ -461,7 +471,7 @@ def test_malformed_planted_errors_are_refused(planted, change):
 
 @pytest.mark.parametrize(
     "change",
-    [{"approved_by": "qa-1", "approved_at": TS}, {"retired_at": TS}],
+    [{"approved_by": "qa-1", "approved_at": TS}, {"retired_at": TS, "retired_by": "qa-1"}],
 )
 def test_planted_errors_start_unapproved(planted, change):
     with refuses("must be unapproved"):
@@ -499,7 +509,7 @@ def test_two_approvals_then_retirement(planted):
     insert(planted, "planted_errors", **planted_row())
     approve(planted, "qa-1")
     approve(planted, "qa-2", "second_approved")
-    planted.execute("UPDATE planted_errors SET retired_at = ?", (TS,))
+    retire(planted)
 
 
 @pytest.mark.parametrize(
@@ -517,12 +527,13 @@ def test_planted_error_content_is_fixed(planted, column):
         "UPDATE planted_errors SET approved_by = 'qa-9'",
         "UPDATE planted_errors SET approved_by = NULL, approved_at = NULL",
         "UPDATE planted_errors SET retired_at = NULL",
+        "UPDATE planted_errors SET retired_by = 'someone-else'",
     ],
 )
 def test_approvals_and_retirement_cannot_be_rewritten(planted, statement):
     insert(planted, "planted_errors", **planted_row())
     approve(planted, "qa-1")
-    planted.execute("UPDATE planted_errors SET retired_at = ?", (TS,))
+    retire(planted)
     with refuses("cannot be changed once set"):
         planted.execute(statement)
 

@@ -184,6 +184,8 @@ _PLANTED_SET_ONCE = (
     "second_approved_by",
     "second_approved_at",
     "retired_at",
+    "retired_by",
+    "retire_reason",
 )
 
 
@@ -212,6 +214,10 @@ _PLANTED_V1: Migration = [
         second_approved_by  TEXT CHECK (trim(second_approved_by) <> ''),
         second_approved_at  TEXT CHECK ({_is_timestamp("second_approved_at")}),
         retired_at          TEXT CHECK ({_is_timestamp("retired_at")}),
+        retired_by          TEXT CHECK (trim(retired_by) <> ''),
+        retire_reason       TEXT,
+        CHECK ((retired_at IS NULL) = (retired_by IS NULL)),
+        CHECK (retire_reason IS NULL OR retired_at IS NOT NULL),
         CHECK (expected_decision = 'reject' OR expected_decision = 'edit:' || defect_field),
         CHECK ((approved_by IS NULL) = (approved_at IS NULL)),
         CHECK ((second_approved_by IS NULL) = (second_approved_at IS NULL)),
@@ -222,7 +228,7 @@ _PLANTED_V1: Migration = [
     )""",
     """CREATE TRIGGER planted_errors_start_unapproved BEFORE INSERT ON planted_errors
     WHEN NEW.approved_by IS NOT NULL OR NEW.second_approved_by IS NOT NULL
-        OR NEW.retired_at IS NOT NULL
+        OR NEW.retired_at IS NOT NULL OR NEW.retired_by IS NOT NULL
     BEGIN SELECT RAISE(ABORT, 'planted_errors: new rows must be unapproved'); END""",
     """CREATE TRIGGER planted_errors_no_replace BEFORE INSERT ON planted_errors
     WHEN EXISTS (SELECT 1 FROM planted_errors
