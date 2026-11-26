@@ -66,6 +66,11 @@ class ItemSchema:
             return frozenset()
         return frozenset(self._schema.get("properties", {}))
 
+    def allowed_values(self, name: str) -> list[Any]:
+        """The ``enum`` of one top-level property, or an empty list if it has none."""
+        subschema = self._schema["properties"][name]
+        return list(subschema.get("enum", [])) if isinstance(subschema, dict) else []
+
     def errors(self, instance: Any, where: str = "payload") -> list[str]:
         """Return every way ``instance`` breaks the schema. An empty list means it is valid."""
         found: list[str] = []

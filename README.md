@@ -13,6 +13,10 @@ step in a tamper-evident log, and reports how many were caught.
 - It is not pre-validated. A validation pack to adapt is planned.
 - It sends no telemetry.
 
+## Guides
+
+- [Writing planted errors](docs/guides/writing-planted-errors.md)
+
 ## License
 
 Apache 2.0. See [LICENSE](https://github.com/tayoakinlabi/ReviewProof/blob/main/LICENSE).

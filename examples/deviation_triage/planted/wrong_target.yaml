@@ -1,0 +1,28 @@
+# SYNTHETIC EXAMPLE planted error: the record points at another product's lot.
+# Examplol lots start with A; D lots are Mockaril (demo rule 2).
+#
+# This file is public. Never use it, or a lightly edited copy of it, with real reviewers.
+planted_error_id: DEMO-WT-1
+queue: deviation-triage
+defect_class: wrong_target
+defect_field: lot_number
+expected_decision: reject
+correct_value: LOT-A10291
+author: demo-author
+payload:
+  deviation_id: DEV-2026-0194
+  occurred_on: '2026-07-16'
+  product: Examplol 50 mg tablets
+  lot_number: LOT-D40291
+  process_step: packaging
+  description: A line clearance check found 12 printed cartons from the previous lot under the cartoner.
+    Reconciliation showed none had entered the current run.
+  classification: major
+  classification_rationale: A failed line clearance creates a mix-up risk, even though no cartons from
+    the previous lot were used.
+  root_cause: The line clearance checklist did not include the area under the cartoner.
+  immediate_actions:
+  - Stopped packaging
+  - Removed and destroyed the stray cartons
+  - Repeated line clearance with a second verifier
+  capa_required: true

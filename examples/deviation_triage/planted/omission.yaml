@@ -1,0 +1,30 @@
+# SYNTHETIC EXAMPLE planted error: a required action is missing.
+# A critical deviation must notify the Quality Unit (demo rule 4).
+#
+# This file is public. Never use it, or a lightly edited copy of it, with real reviewers.
+planted_error_id: DEMO-OM-1
+queue: deviation-triage
+defect_class: omission
+defect_field: immediate_actions
+expected_decision: edit:immediate_actions
+correct_value:
+- Placed the batch on hold
+- Quarantined the filter assembly
+- Notified the Quality Unit
+author: demo-author
+payload:
+  deviation_id: DEV-2026-0191
+  occurred_on: '2026-07-08'
+  product: Synthavax diluent 2 mL vials
+  lot_number: LOT-E50112
+  process_step: filling
+  description: The post-use integrity test of the sterilizing filter failed and failed again on retest.
+    The filled vials rely on this filter for sterility.
+  classification: critical
+  classification_rationale: A confirmed sterilizing filter integrity failure means the product cannot
+    be assured sterile.
+  root_cause: Under investigation; a damaged filter seal was observed on removal.
+  immediate_actions:
+  - Placed the batch on hold
+  - Quarantined the filter assembly
+  capa_required: true

@@ -1,0 +1,27 @@
+# SYNTHETIC EXAMPLE planted error: a required CAPA is not raised.
+# Every major or critical deviation needs a CAPA (demo rule 3).
+#
+# This file is public. Never use it, or a lightly edited copy of it, with real reviewers.
+planted_error_id: DEMO-PB-1
+queue: deviation-triage
+defect_class: policy_breach
+defect_field: capa_required
+expected_decision: edit:capa_required
+correct_value: true
+author: demo-author
+payload:
+  deviation_id: DEV-2026-0195
+  occurred_on: '2026-07-20'
+  product: Fictamab 100 mg injection
+  lot_number: LOT-F60058
+  process_step: storage
+  description: Two pallets of released and quarantined vials were found in the same marked bay. Status
+    labels were intact and stock records show no movement of quarantined stock.
+  classification: major
+  classification_rationale: Physical segregation of quarantined stock failed, creating a mix-up risk.
+  root_cause: The quarantine bay was full and no overflow location was defined.
+  immediate_actions:
+  - Moved quarantined stock to a segregated area
+  - Verified stock status against the inventory system
+  - Defined a temporary overflow location
+  capa_required: false

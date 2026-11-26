@@ -1,0 +1,28 @@
+# SYNTHETIC EXAMPLE planted error: a dose is wrong.
+# Demozine is a 10 mg product (demo rule 1).
+#
+# This file is public. Never use it, or a lightly edited copy of it, with real reviewers.
+planted_error_id: DEMO-WV-1
+queue: deviation-triage
+defect_class: wrong_value
+defect_field: product
+expected_decision: edit:product
+correct_value: Demozine 10 mg capsules
+author: demo-author
+payload:
+  deviation_id: DEV-2026-0190
+  occurred_on: '2026-07-06'
+  product: Demozine 100 mg capsules
+  lot_number: LOT-B20488
+  process_step: filling
+  description: Capsule fill weights exceeded the upper action limit for 25 minutes. In-process checks
+    show three samples above the registered specification.
+  classification: major
+  classification_rationale: Product outside the registered specification may have been produced; the affected
+    portion can be identified by time.
+  root_cause: The dosing disc was set to the wrong height after a changeover.
+  immediate_actions:
+  - Stopped the filler
+  - Segregated containers filled during the 25-minute window
+  - Reset and verified the dosing disc height
+  capa_required: true

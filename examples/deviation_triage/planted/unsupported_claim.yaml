@@ -1,0 +1,28 @@
+# SYNTHETIC EXAMPLE planted error: a conclusion with no evidence.
+# The item itself says the isolate has only just been sent for identification.
+#
+# This file is public. Never use it, or a lightly edited copy of it, with real reviewers.
+planted_error_id: DEMO-UC-1
+queue: deviation-triage
+defect_class: unsupported_claim
+defect_field: root_cause
+expected_decision: edit:root_cause
+correct_value: Under investigation; organism identification is pending.
+author: demo-author
+payload:
+  deviation_id: DEV-2026-0193
+  occurred_on: '2026-07-14'
+  product: Fictamab 100 mg injection
+  lot_number: LOT-F60052
+  process_step: laboratory
+  description: An environmental monitoring settle plate in the Grade A zone grew one colony during filling.
+    Media fill history and other locations for the session showed no growth.
+  classification: major
+  classification_rationale: Any growth in the Grade A zone exceeds the action limit and requires investigation
+    of batch impact.
+  root_cause: The plate was contaminated by contact during removal; the organism is a common skin bacterium.
+  immediate_actions:
+  - Placed the batch on hold
+  - Sent the isolate for identification
+  - Reviewed intervention records for the session
+  capa_required: true

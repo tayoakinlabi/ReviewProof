@@ -1,0 +1,28 @@
+# SYNTHETIC EXAMPLE planted error: a critical deviation proposed as major.
+# Testing cannot restore sterility assurance. The rationale is reworded to sound plausible.
+#
+# This file is public. Never use it, or a lightly edited copy of it, with real reviewers.
+planted_error_id: DEMO-WC-1
+queue: deviation-triage
+defect_class: wrong_classification
+defect_field: classification
+expected_decision: edit:classification
+correct_value: critical
+author: demo-author
+payload:
+  deviation_id: DEV-2026-0192
+  occurred_on: '2026-07-10'
+  product: Fictamab 100 mg injection
+  lot_number: LOT-F60047
+  process_step: filling
+  description: An operator reached over open sterilized stoppers during aseptic filling. No intervention
+    was recorded at the time, and the event was found on video review.
+  classification: major
+  classification_rationale: No contamination was detected and the event was limited to one intervention,
+    so batch impact can be assessed through the investigation.
+  root_cause: The stopper bowl layout requires operators to reach across it to clear a common jam.
+  immediate_actions:
+  - Placed the batch on hold
+  - Suspended the operator's aseptic qualification pending retraining
+  - Notified the Quality Unit
+  capa_required: true
