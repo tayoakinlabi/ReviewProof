@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.env
+
+# Never commit databases or a deployment's own planted errors.
+# The only planted errors allowed in this repo are synthetic examples under examples/.
+*.db
+*.db-wal
+*.db-shm
+/planted/
+/local/

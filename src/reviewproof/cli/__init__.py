@@ -1,0 +1,1 @@
+"""The ``rp`` command line."""
