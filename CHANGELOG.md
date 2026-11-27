@@ -31,6 +31,9 @@ database format. Each release says what a validated user would need to retest.
 - Strands Agents adapter, as `reviewproof[strands]`. **`ReviewTools` must be passed in
   `Agent(hooks=[...])`,** and background tasks must be off. See the
   [guide](docs/guides/strands.md).
+- Microsoft Agent Framework adapter, as `reviewproof[agent-framework]`, for Python 3.11 or
+  later. **Runs need a session, and a failed reviewed tool raises `RunStopped`, which
+  `except Exception` does not catch.** See the [guide](docs/guides/agent-framework.md).
 
 ### Change impact
 

@@ -133,8 +133,9 @@ Agent libraries pause before a tool runs and resume it later. Between the two th
 again, resume twice or approve by themselves. So **the library's approval only wakes the tool;
 ReviewProof decides what may be written.** There are adapters for
 [LangGraph](langgraph.md), the [OpenAI Agents SDK](openai-agents.md),
-[Pydantic AI](pydantic-ai.md) and [Strands Agents](strands.md). Adapters for other libraries
-are not included yet. `ReviewedTool` is the part they share, and you can use it directly:
+[Pydantic AI](pydantic-ai.md), [Strands Agents](strands.md) and
+[Microsoft Agent Framework](agent-framework.md). For anything else, `ReviewedTool` is the
+part they share, and you can use it directly:
 
 ```python
 from reviewproof import CallState

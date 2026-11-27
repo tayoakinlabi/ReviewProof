@@ -48,6 +48,8 @@ jobs:
              module: pydantic_ai, import: pydantic_ai, lowest: "3.11"}
           - {extra: strands, package: strands-agents, oldest: "1.67.0",
              module: strands, import: strands, lowest: "3.10"}
+          - {extra: agent-framework, package: agent-framework-core, oldest: "1.26.0",
+             module: agent_framework, import: agent_framework, lowest: "3.11"}
     name: >-
       adapters (${{ matrix.adapter.extra }}, ${{ matrix.release }},
       ${{ matrix.python == 'lowest' && matrix.adapter.lowest || matrix.python }})

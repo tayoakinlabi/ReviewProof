@@ -56,6 +56,7 @@ Python 3.10 or later. The one runtime dependency is PyYAML.
 - [OpenAI Agents SDK](docs/guides/openai-agents.md)
 - [Pydantic AI](docs/guides/pydantic-ai.md)
 - [Strands Agents](docs/guides/strands.md)
+- [Microsoft Agent Framework](docs/guides/agent-framework.md)
 - [Qualifying reviewers](docs/guides/qualification.md)
 - [Writing planted errors](https://github.com/tayoakinlabi/ReviewProof/blob/v0.1.0/docs/guides/writing-planted-errors.md)
 - [A complete example](https://github.com/tayoakinlabi/ReviewProof/blob/v0.1.0/examples/deviation_triage/integrate.py)

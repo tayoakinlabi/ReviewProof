@@ -4,7 +4,8 @@
 - **Date:** 2026-11-26
 - **Amended:** 2026-11-27 ([LangGraph, and what the review queue can show](#amendment-of-2026-11-27);
   [OpenAI Agents SDK](#amendment-openai-agents-sdk); [Pydantic AI](#amendment-pydantic-ai);
-  [Strands Agents](#amendment-strands-agents))
+  [Strands Agents](#amendment-strands-agents);
+  [Microsoft Agent Framework](#amendment-microsoft-agent-framework))
 - **Amends:** ADR-003 (replay-safe `submit`, three new methods, and what server
   code can learn about a pair)
 
@@ -115,7 +116,8 @@ Approval inside the agent's own chat is not supported.
 ### 5. A failure after approval stops the run
 
 *Further conditions: [OpenAI Agents SDK](#amendment-openai-agents-sdk),
-[Pydantic AI](#amendment-pydantic-ai) and [Strands Agents](#amendment-strands-agents).*
+[Pydantic AI](#amendment-pydantic-ai), [Strands Agents](#amendment-strands-agents) and
+[Microsoft Agent Framework](#amendment-microsoft-agent-framework).*
 
 If the guard refuses, or the write fails, or it ran but could not be logged, the error reaches
 the host. It must not become text that lets the model try again: a retry would be a new call,
@@ -139,6 +141,9 @@ to one thread and some libraries run tools on other threads, so adapters take a 
 opens an `Oversight` for each use.
 
 ### 7. Rejections and edits
+
+*For Microsoft Agent Framework, the rejection message is
+[amended](#amendment-microsoft-agent-framework).*
 
 - **Reject:** nothing runs. The agent gets a fixed message: a reviewer did not approve this
   action, and it was not done.
@@ -315,3 +320,36 @@ scripted model. Section 5 left stopping the run open for this library.
    for another call, the session can be the one from the earlier pause; resuming it ran the
    failed call again, which the guard refused. The host must keep its own record of stopped runs.
 5. **Hooks or middleware that rewrite a reviewed tool's result are not supported.**
+
+## Amendment: Microsoft Agent Framework
+
+**Accepted 2026-11-27. Found while building that adapter.** Observed with `agent-framework-core` 1.26.0
+and a scripted model. Section 5 left stopping the run open for this library.
+
+| Observed | What happened |
+| --- | --- |
+| A tool raised an ordinary error | The model was told the function failed, and the run continued. |
+| A tool raised the library's `MiddlewareFailure` | The run stopped, but a host middleware that recovers from errors caught it, and the model got that middleware's result. |
+| A tool raised an error outside `Exception` | The run stopped with no middleware, with a passing one and with a recovering one, with two calls at once, and when streaming. |
+| Two calls waiting, one answered | Nothing ran until both were answered. |
+| An approval answered without a session | It was ignored. Nothing ran, and the model carried on. |
+| One saved session restored twice | The tool ran twice. |
+| "Always approve" through the approval middleware | A later call ran with no pause. |
+
+1. **Every failure of a reviewed tool is raised as `RunStopped`, a `BaseException`,** as for
+   Pydantic AI and with the same cost: a host's `except Exception` does not catch it.
+   `MiddlewareFailure` is not used. This settles section 5 for this library.
+2. **ReviewProof builds the tools.** The tool takes each call's ID from the library's `invoke`
+   method, and any error after its function has started also stops the run. A failed session's
+   reviewed tools write nothing more. The library would still ask the model, so the host must
+   not use the session again.
+3. **A session is required.** Its ID and the tool-call ID are the key, so no run ID function is
+   needed. ReviewProof cannot raise an error for a pause answered without a session, because
+   its tool is never called: nothing is written, but the model carries on.
+4. **A run resumes only when every call has been decided,** as for Pydantic AI, with the same
+   duties after a failure.
+5. **For a rejection, the model is told the library's own fixed message,** "Error: Tool call
+   invocation was rejected by user.", which replaces the one in section 7. Approving the call in
+   the library so that ReviewProof's message could be returned would run the tool for a
+   rejected call, and record it there as approved.
+6. **Middleware that replaces a reviewed tool's result is not supported.**

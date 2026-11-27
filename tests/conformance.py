@@ -34,6 +34,10 @@ class Harness(ABC):
     #: ``resume()`` must do nothing until all of them have been decided.
     resumes_each_call_alone = True
 
+    #: What the model is told about a rejected call. A library that does not let an adapter
+    #: word it says so here; it must still be a fixed message that says nothing more.
+    rejection_reply = NOT_APPROVED
+
     def __init__(self, tool: ReviewedTool, *proposals: dict[str, Any]) -> None:
         self.tool = tool
         self.proposals = proposals
@@ -202,7 +206,7 @@ class AdapterConformance:
         world.decide(planted, "reject")
         world.agent.resume()
         assert world.written == []
-        assert any(NOT_APPROVED in reply for reply in world.agent.replies())
+        assert any(world.agent.rejection_reply in reply for reply in world.agent.replies())
 
     def test_an_edited_call_writes_the_edit_and_says_so(self, world):
         world.agent.start()
@@ -280,7 +284,8 @@ class AdapterConformance:
         world.agent.resume()
         assert world.written == [PROPOSAL]
         replies = world.agent.replies()
-        assert len(replies) == 2 and any(NOT_APPROVED in reply for reply in replies)
+        assert len(replies) == 2
+        assert any(world.agent.rejection_reply in reply for reply in replies)
 
     @pytest.mark.parametrize("error", [ConnectionError("down"), ValueError("bad record")])
     def test_a_failed_write_stops_the_run(self, world, error):

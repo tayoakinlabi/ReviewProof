@@ -146,6 +146,12 @@ def test_a_closed_database_raises_store_error(oversight_path):
         log.head()
 
 
+#: These two tests are about the chain, not speed. SQLite does not queue waiting writers, so
+#: on a slow disk one can wait past the usual limit and be refused, which is correct: see
+#: test_a_locked_log_raises_store_error.
+PATIENT = "PRAGMA busy_timeout = 60000"
+
+
 def test_concurrent_threads_cannot_fork_the_chain(oversight_db, oversight_path):
     writers, each = 6, 40
     errors = []
@@ -154,6 +160,7 @@ def test_concurrent_threads_cannot_fork_the_chain(oversight_db, oversight_path):
     def write():
         try:
             with closing(open_oversight_db(oversight_path)) as db:
+                db.execute(PATIENT)
                 log = EventLog(db)
                 start.wait()
                 for _ in range(each):
@@ -178,14 +185,16 @@ import sys
 from reviewproof.models import EventType
 from reviewproof.store import open_oversight_db
 from reviewproof.store.eventlog import EventLog
-log = EventLog(open_oversight_db(sys.argv[1]))
+db = open_oversight_db(sys.argv[1])
+db.execute(sys.argv[3])
+log = EventLog(db)
 for _ in range(int(sys.argv[2])):
     log.append(EventType.SHOWN, system_id="sys-1")
 """
 
 
 def test_concurrent_processes_cannot_fork_the_chain(oversight_db, oversight_path):
-    command = [sys.executable, "-c", WRITER, str(oversight_path), "30"]
+    command = [sys.executable, "-c", WRITER, str(oversight_path), "30", PATIENT]
     processes = [subprocess.Popen(command, stderr=subprocess.PIPE) for _ in range(4)]
     for process in processes:
         _, stderr = process.communicate(timeout=120)
