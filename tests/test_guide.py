@@ -152,4 +152,10 @@ def test_the_guide_links_work():
     links = re.findall(r"\]\((?!https?://|#)([^)]+)\)", GUIDE.read_text(encoding="utf-8"))
     assert len(links) >= 8
     for link in links:
-        assert (GUIDE.parent / link).exists(), link
+        target, _, anchor = link.partition("#")
+        file = GUIDE.parent / target
+        assert file.exists(), link
+        if anchor:
+            headings = re.findall(r"^#{1,6} +(.+?) *$", file.read_text(encoding="utf-8"), re.M)
+            slugs = {re.sub(r"[^\w\- ]", "", h.lower()).replace(" ", "-") for h in headings}
+            assert anchor in slugs, link

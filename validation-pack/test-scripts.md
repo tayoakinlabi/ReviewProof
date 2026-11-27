@@ -183,7 +183,11 @@ Checks DEP-008 and DEP-009.
 
 ## Part C: duties shown by documents
 
-For each, record the document and why it is enough.
+For each, record the document and why it is enough. The procedure templates for the
+[planted-error program](sop-planted-errors.md),
+[reviewer qualification](sop-reviewer-qualification.md) and
+[metric review](sop-metric-review.md) are a start on DEP-012 to DEP-015. A template is not
+evidence until you have completed, approved and followed it.
 
 | Duty | Evidence to collect | Record |
 | --- | --- | --- |

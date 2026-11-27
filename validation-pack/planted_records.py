@@ -1,0 +1,144 @@
+"""Read two things from the databases that the ``rp`` commands do not show. For QA.
+
+    python validation-pack/planted_records.py register planted.db
+
+Every planted error: who wrote, approved and retired it, when, and why. It shows no content.
+
+    python validation-pack/planted_records.py uses PE-0001 oversight.db planted.db
+
+Everyone known to have been given, shown or to have decided on a copy of one planted error,
+in live review or in a qualification session. For a live copy with nothing recorded, the
+reviewer is blank unless your application named one. Use it when a planted error turns out to
+be wrong or recognisable, because retiring it leaves those results in every score.
+
+Both databases are opened read-only. **This does not check that the records are unchanged:** run
+``rp verify --planted planted.db`` first. Verification does not cover retirement details.
+
+The output is confidential. It identifies planted errors, and ``uses`` also shows what
+individual reviewers did.
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+import sqlite3
+import sys
+from collections.abc import Sequence
+from contextlib import closing
+from pathlib import Path
+
+from reviewproof.feedback import score
+from reviewproof.store.schema import StoreError, open_readonly
+
+REGISTER = (
+    "planted_error_id",
+    "queue_id",
+    "purpose",
+    "defect_class",
+    "author",
+    "imported_at",
+    "approved_by",
+    "approved_at",
+    "second_approved_by",
+    "second_approved_at",
+    "retired_by",
+    "retired_at",
+    "retire_reason",
+)
+USES = ("time_utc", "use", "reference", "reviewer", "what_happened", "decision", "scored_as")
+
+_EVENTS = (
+    "SELECT event_id, ts_utc, type, reviewer_id, decision, data FROM events "
+    "WHERE item_id = ? AND type IN "
+    "('shown', 'decided', 'feedback_sent', 'qualification_answered') ORDER BY event_id"
+)
+
+
+def register(planted: Path) -> list[tuple]:
+    with closing(open_readonly(planted, "planted")) as db:
+        columns = ", ".join(REGISTER)
+        return [
+            tuple(row) for row in db.execute(f"SELECT {columns} FROM planted_errors ORDER BY rowid")
+        ]
+
+
+def uses(planted_error_id: str, oversight: Path, planted: Path) -> list[tuple]:
+    with (
+        closing(open_readonly(oversight, "oversight")) as log,
+        closing(open_readonly(planted, "planted")) as db,
+    ):
+        found = db.execute(
+            "SELECT defect_field FROM planted_errors WHERE planted_error_id = ?",
+            (planted_error_id,),
+        ).fetchone()
+        if found is None:
+            raise StoreError(f"no planted error {planted_error_id!r}")
+        defect_field = found[0]
+        # Each copy: how it was used, its item, what to call it, and who it was given to.
+        copies = [
+            ("live", item_id, item_id, assigned)
+            for item_id, assigned in db.execute(
+                "SELECT item_id, assigned_reviewer FROM item_registry WHERE planted_error_id = ?",
+                (planted_error_id,),
+            )
+        ]
+        in_sessions = db.execute(
+            "SELECT item_id, session_id FROM qualification_items WHERE planted_error_id = ?",
+            (planted_error_id,),
+        ).fetchall()
+        if in_sessions:
+            # A whole session goes to one person, so they had it whether or not they answered.
+            sat_by = {
+                json.loads(row["data"])["session_id"]: row["reviewer_id"]
+                for row in log.execute(
+                    "SELECT reviewer_id, data FROM events WHERE type = 'qualification_started'"
+                )
+            }
+            copies += [("qualification", i, s, sat_by.get(s)) for i, s in in_sessions]
+
+        rows = []
+        for use, item_id, reference, given_to in copies:
+            events = log.execute(_EVENTS, (item_id,)).fetchall()
+            if not events:
+                rows.append((0, "", use, reference, given_to or "", "nothing recorded", "", ""))
+            for event_id, at, kind, reviewer, decision, data in events:
+                outcome = ""
+                if decision:
+                    edited = json.loads(data).get("edited_fields", [])
+                    outcome = score(decision, edited, defect_field).value
+                rows.append((event_id, at, use, reference, reviewer, kind, decision or "", outcome))
+        return [row[1:] for row in sorted(rows)]
+
+
+def main(arguments: Sequence[str]) -> int:
+    try:
+        match list(arguments):
+            case ["register", planted]:
+                header, rows = REGISTER, register(Path(planted))
+            case ["uses", planted_error_id, oversight, planted]:
+                header = USES
+                rows = uses(planted_error_id, Path(oversight), Path(planted))
+            case _:
+                print(__doc__, file=sys.stderr)
+                return 2
+    except (StoreError, sqlite3.Error) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerow(header)
+    for row in rows:
+        writer.writerow(_safe(value) for value in row)
+    return 0
+
+
+def _safe(value: object) -> object:
+    """A spreadsheet treats a cell starting with one of these as a formula."""
+    text = "" if value is None else value
+    if isinstance(text, str) and text.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + text
+    return text
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

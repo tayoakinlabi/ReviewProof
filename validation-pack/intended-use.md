@@ -125,4 +125,7 @@ met. The ones that most affect whether results mean anything:
 - Its times come from the clock of the machine it runs on.
 - It cannot detect a completely rebuilt log without a head exported earlier.
 - With few planted errors, results are strongly affected by chance.
+- Retiring a planted error leaves its past results in every score, including one found to be
+  wrong. ReviewProof cannot exclude them.
+- A reviewer's qualification does not expire with time.
 - **[FILL: limitations you found]**

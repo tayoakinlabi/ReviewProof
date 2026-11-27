@@ -334,7 +334,10 @@ system's output changes in style.
 held back until replaced. `stale()` lists them and says why. If your procedures change, check that
 each expected decision is still right: **ReviewProof cannot detect that for you.**
 
-Retiring is permanent, and records who did it and why.
+Retiring is permanent, and records who did it and why. **It does not remove the planted
+error's past results from any score.** If one turns out to be wrong, the validation pack's
+[procedure](../../validation-pack/sop-planted-errors.md#10-a-planted-error-that-is-wrong-or-recognisable)
+shows how to find the results it affected.
 
 ```python
 library.retire("DEMO-WV-1", retired_by="qa-lead-1", reason="a reviewer suspected it")
