@@ -137,6 +137,12 @@ guide**: [LangGraph](../docs/guides/langgraph.md),
 | REQ-051 | Through each adapter, end the agent's run when an approved write fails, without giving the model the chance to try it again. |
 | REQ-052 | Through each adapter, run each of several calls proposed at once no more than once. |
 
+### Default planted share
+
+| ID | The software shall |
+| --- | --- |
+| REQ-053 | Where a queue's settings give no planted share, use 1%, 2% or 3% according to the queue's VITAL rating, as [ADR-007](../docs/adr/0007-vital-ratings.md#default-planted-share) sets out; where they give one, use it. |
+
 ## Deployment duties
 
 For each duty, record how you meet it and how you tested it. Where the tool's design records

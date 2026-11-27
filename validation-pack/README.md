@@ -3,7 +3,7 @@
 For the validation lead and quality unit of an organisation that wants to use ReviewProof in
 regulated work.
 
-> **Status: draft, and incomplete.** ReviewProof is **not pre-validated**, and this pack does
+> **Status: draft.** ReviewProof is **not pre-validated**, and this pack does
 > not validate it for you. No outside quality specialist has reviewed it yet. It describes the
 > source code in this repository, which is **newer than the latest release on PyPI**.
 

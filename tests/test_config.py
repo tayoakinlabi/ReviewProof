@@ -55,6 +55,7 @@ def parse(data):
         ("A4", RiskCategory.LOW, 0.01),
     ],
 )
+@pytest.mark.req("REQ-053")
 def test_risk_tier_defaults(base_risk, category, rate):
     data = valid()
     data["queues"][0]["vital_base_risk"] = base_risk
@@ -83,6 +84,7 @@ CATEGORY_WORDS = [(None, "low", "moderate", "medium"), ("high",), ("very_high", 
         for category in words
     ],
 )
+@pytest.mark.req("REQ-053")
 def test_every_vital_rating_has_the_share_in_adr_007(base_risk, category, rate):
     data = valid()
     data["queues"][0]["vital_base_risk"] = base_risk
@@ -164,6 +166,7 @@ def test_defaults():
     assert config.reserved_target_prefix == "rp-reserved-"
 
 
+@pytest.mark.req("REQ-053")
 def test_rate_can_be_overridden():
     data = valid()
     data["queues"][0]["planted_rate"] = 0.2

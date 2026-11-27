@@ -9,7 +9,7 @@ passed: for that, make a record from a test run, as the
 Nor does a tag show that the tests are enough for your use. The deployment duties have
 no tests here: they are yours to test.
 
-52 requirements, 204 tagged tests. A test may cover several requirements, and may run with several inputs.
+53 requirements, 207 tagged tests. A test may cover several requirements, and may run with several inputs.
 
 ## REQ-001
 
@@ -563,3 +563,12 @@ Through each adapter, run each of several calls proposed at once no more than on
 - [`tests/conformance.py`](../tests/conformance.py) (shared: runs once for each of 6 adapter test files)
   - `test_two_calls_decided_before_one_resume_each_run_once`
   - `test_two_calls_proposed_at_once_each_run_once`
+
+## REQ-053
+
+Where a queue's settings give no planted share, use 1%, 2% or 3% according to the queue's VITAL rating, as [ADR-007](../docs/adr/0007-vital-ratings.md#default-planted-share) sets out; where they give one, use it.
+
+- [`tests/test_config.py`](../tests/test_config.py)
+  - `test_every_vital_rating_has_the_share_in_adr_007`
+  - `test_rate_can_be_overridden`
+  - `test_risk_tier_defaults`
