@@ -60,3 +60,11 @@ def ov(deployment):
     ov = deployment.open()
     deployment.load_planted(ov)
     return ov
+
+
+@pytest.fixture
+def no_proxy(monkeypatch):
+    """Keep test requests to the local stand-in off any system proxy."""
+    for name in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")

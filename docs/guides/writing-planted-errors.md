@@ -3,10 +3,9 @@
 This guide is for the QA staff who write and approve planted errors, and for the engineer who
 loads them.
 
-> **Status:** ReviewProof is pre-release. You can write, check, approve and retire planted errors
-> today, put them into a review queue, record decisions, and block them from execution.
-> Reports and scores are not built yet, and nothing here is pre-validated. There is no command for these steps
-> yet, so an engineer runs the short Python examples below.
+> **Status:** ReviewProof is pre-release and not pre-validated. An engineer or QA
+> administrator runs the [`rp plant` commands](../cli.md), or the short Python examples
+> below. They do the same things.
 
 ## What a planted error is
 
@@ -247,6 +246,16 @@ rationale. Work through the checklist at the top of the file before importing it
 
 ## Loading and approval
 
+From a terminal:
+
+```bash
+rp plant import my-planted-error.yaml
+rp plant approve PE-0007 --approver qa-lead-1
+rp plant list
+```
+
+Or in Python:
+
 ```python
 from reviewproof.config import load_config
 from reviewproof.planted import PlantedLibrary
@@ -295,11 +304,11 @@ keep your formal sign-off in your quality management system.
 ## Looking after the library
 
 **Write enough.** ReviewProof uses a planted error more than once. It takes one of the least
-used, and never puts a second copy in a queue while one is waiting for a decision. If your system
-says who will review an item, it also skips planted errors that person has already met. If it
-cannot say, as is common with a shared queue, **someone may meet the same one twice**, and
-colleagues may tell each other about it. Only a reviewer's first sight of a planted error is meant
-to count towards their score (scoring is not built yet), so repeats add nothing to what you learn.
+used, and never puts a second copy in a queue while one is waiting for a decision. If your
+system says who will review an item, it also skips planted errors that person has already
+met. If it cannot say, as is common with a shared queue, **someone may meet the same one
+twice**, and colleagues may tell each other about it. Only a reviewer's first sight of a
+planted error counts towards scores, so repeats add nothing to what you learn.
 
 Plan for what one reviewer meets. At a 2% rate, someone reviewing 100 items a week meets about
 two a week, or about 16 over eight weeks. The actual number is random and may well be higher or

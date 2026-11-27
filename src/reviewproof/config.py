@@ -9,10 +9,11 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
+from urllib.parse import urlsplit
 
 from reviewproof.models import FeedbackTiming, OversightContext, RiskCategory
 from reviewproof.strictload import LoadError, load_file
@@ -27,6 +28,9 @@ DEFAULT_RESERVED_TARGET_PREFIX = "rp-reserved-"
 MIN_RESERVED_PREFIX_LENGTH = 6
 
 _BASE_RISK = re.compile(r"A([1-9][0-9]?)")
+
+#: No individual score is ever shown from fewer planted errors than this.
+INDIVIDUAL_FLOOR = 10
 
 
 class ConfigError(ValueError):
@@ -50,6 +54,64 @@ def risk_tier(base_risk: str, adjusted_category: RiskCategory | None = None) -> 
 
 
 @dataclass(frozen=True)
+class Thresholds:
+    """When a report or alert says something needs attention. Shares are 0 to 1.
+
+    These are proposed defaults, to be calibrated in a pilot.
+    """
+
+    #: Alert when the rolling catch rate is below this.
+    catch_rate_min: float = 0.80
+    #: Alert when any defect class is caught less often than this.
+    class_catch_rate_min: float = 0.60
+    #: Alert when more than this share of a week's approvals were faster than the minimum.
+    fast_approval_share_max: float = 0.20
+    #: Alert when agreement is above this while the catch rate is falling.
+    agreement_rate_max: float = 0.98
+    #: Alert when the catch rate late in sessions is this much lower than early on.
+    fatigue_drop_max: float = 0.20
+    #: Fewest planted errors (or approvals, for weekly speed) before a rule is judged.
+    min_sample: int = 10
+    #: The rolling catch rate covers this many of the latest planted errors.
+    rolling_window: int = 50
+    #: A longer pause between one reviewer's decisions starts a new session.
+    session_gap_minutes: int = 30
+    individual_min_planted: int = INDIVIDUAL_FLOOR
+    #: Optional cap on the items one reviewer decides in a day.
+    max_items_per_reviewer_per_day: int | None = None
+
+
+_SHARES = (
+    "catch_rate_min",
+    "class_catch_rate_min",
+    "fast_approval_share_max",
+    "agreement_rate_max",
+    "fatigue_drop_max",
+)
+_COUNTS = ("min_sample", "rolling_window", "session_gap_minutes", "individual_min_planted")
+
+
+@dataclass(frozen=True)
+class Smtp:
+    host: str
+    sender: str
+    port: int = 587
+    starttls: bool = True
+    #: Names of environment variables, so that no password is ever kept in the settings file.
+    username_env: str | None = None
+    password_env: str | None = None
+
+
+@dataclass(frozen=True)
+class AlertRoute:
+    """Where alerts go: to the QA lead. There is deliberately no other kind of recipient."""
+
+    emails: tuple[str, ...] = ()
+    webhook: str | None = None
+    smtp: Smtp | None = None
+
+
+@dataclass(frozen=True)
 class QueueConfig:
     name: str
     system: str
@@ -63,6 +125,7 @@ class QueueConfig:
     # Defaults to the stricter setting: a GxP queue needs two approvers per planted error.
     gxp: bool = True
     site: str | None = None
+    thresholds: Thresholds = Thresholds()
 
     @property
     def tier(self) -> int:
@@ -80,6 +143,8 @@ class Config:
     systems: Mapping[str, OversightContext]
     queues: Mapping[str, QueueConfig]
     reserved_target_prefix: str = DEFAULT_RESERVED_TARGET_PREFIX
+    reporting: Thresholds = Thresholds()
+    alerts: AlertRoute = AlertRoute()
 
 
 def load_config(path: str | Path) -> Config:
@@ -94,8 +159,13 @@ def load_config(path: str | Path) -> Config:
 
 def parse_config(data: Any, base_dir: Path) -> Config:
     root = _mapping(
-        data, "config", required={"systems", "queues"}, optional={"reserved_target_prefix"}
+        data,
+        "config",
+        required={"systems", "queues"},
+        optional={"reserved_target_prefix", "reporting", "alerts"},
     )
+    reporting = _parse_thresholds(root.get("reporting", {}), "reporting", Thresholds())
+    alerts = _parse_alerts(root.get("alerts", {}))
 
     prefix = root.get("reserved_target_prefix", DEFAULT_RESERVED_TARGET_PREFIX)
     prefix = _string(prefix, "reserved_target_prefix")
@@ -114,14 +184,14 @@ def parse_config(data: Any, base_dir: Path) -> Config:
 
     queues: dict[str, QueueConfig] = {}
     for index, entry in enumerate(_list(root["queues"], "queues")):
-        queue = _parse_queue(entry, f"queues[{index}]", base_dir)
+        queue = _parse_queue(entry, f"queues[{index}]", base_dir, reporting)
         if queue.name in queues:
             raise ConfigError(f"queues[{index}]: duplicate queue name {queue.name!r}")
         if queue.system not in systems:
             raise ConfigError(f"queues[{index}]: unknown system {queue.system!r}")
         queues[queue.name] = queue
 
-    return Config(MappingProxyType(systems), MappingProxyType(queues), prefix)
+    return Config(MappingProxyType(systems), MappingProxyType(queues), prefix, reporting, alerts)
 
 
 def _parse_system(data: Any, where: str) -> OversightContext:
@@ -135,7 +205,7 @@ def _parse_system(data: Any, where: str) -> OversightContext:
     return OversightContext(system=values.pop("name"), intended_use=intended_use, **values)
 
 
-def _parse_queue(data: Any, where: str, base_dir: Path) -> QueueConfig:
+def _parse_queue(data: Any, where: str, base_dir: Path, defaults: Thresholds) -> QueueConfig:
     entry = _mapping(
         data,
         where,
@@ -148,8 +218,9 @@ def _parse_queue(data: Any, where: str, base_dir: Path) -> QueueConfig:
             "feedback",
             "item_schema",
         },
-        optional={"vital_adjusted_category", "planted_rate", "gxp", "site"},
+        optional={"vital_adjusted_category", "planted_rate", "gxp", "site", "thresholds"},
     )
+    thresholds = _parse_thresholds(entry.get("thresholds", {}), f"{where}.thresholds", defaults)
 
     category = entry.get("vital_adjusted_category")
     if category is not None:
@@ -197,7 +268,98 @@ def _parse_queue(data: Any, where: str, base_dir: Path) -> QueueConfig:
         item_schema=item_schema,
         gxp=gxp,
         site=site,
+        thresholds=thresholds,
     )
+
+
+def _parse_thresholds(data: Any, where: str, defaults: Thresholds) -> Thresholds:
+    names = {*_SHARES, *_COUNTS, "max_items_per_reviewer_per_day"}
+    entry = _mapping(data, where, required=set(), optional=names)
+    values: dict[str, Any] = {}
+    for name, value in entry.items():
+        label = f"{where}.{name}"
+        if name in _SHARES:
+            values[name] = _number(value, label)
+            if not 0 <= values[name] <= 1:
+                raise ConfigError(f"{label} must be a share from 0 to 1 (0.8 means 80%)")
+        elif name == "max_items_per_reviewer_per_day" and value is None:
+            values[name] = None
+        elif type(value) is not int or value < 1:
+            raise ConfigError(f"{label} must be a whole number, 1 or more")
+        else:
+            values[name] = value
+    result = replace(defaults, **values)
+    if result.individual_min_planted < INDIVIDUAL_FLOOR:
+        raise ConfigError(
+            f"{where}.individual_min_planted cannot be below {INDIVIDUAL_FLOOR}: no individual "
+            "score is shown from fewer planted errors"
+        )
+    return result
+
+
+def _parse_alerts(data: Any) -> AlertRoute:
+    entry = _mapping(data, "alerts", required=set(), optional={"qa_lead", "smtp"})
+    lead = _mapping(
+        entry.get("qa_lead", {}), "alerts.qa_lead", required=set(), optional={"email", "webhook"}
+    )
+    emails = lead.get("email", [])
+    if not isinstance(emails, list):
+        raise ConfigError("alerts.qa_lead.email must be a list of addresses")
+    for address in emails:
+        _address(address, "alerts.qa_lead.email")
+
+    webhook = lead.get("webhook")
+    if webhook is not None:
+        parts = urlsplit(_string(webhook, "alerts.qa_lead.webhook"))
+        local = parts.hostname in ("localhost", "127.0.0.1", "::1")
+        if not parts.hostname or not (
+            parts.scheme == "https" or (parts.scheme == "http" and local)
+        ):
+            raise ConfigError("alerts.qa_lead.webhook must be an https address")
+
+    smtp = None
+    if "smtp" in entry:
+        smtp = _parse_smtp(entry["smtp"])
+    if emails and smtp is None:
+        raise ConfigError("alerts.smtp is needed to send email")
+    return AlertRoute(tuple(emails), webhook, smtp)
+
+
+def _parse_smtp(data: Any) -> Smtp:
+    entry = _mapping(
+        data,
+        "alerts.smtp",
+        required={"host", "sender"},
+        optional={"port", "starttls", "username_env", "password_env"},
+    )
+    port = entry.get("port", 587)
+    if type(port) is not int or not 0 < port < 65536:
+        raise ConfigError("alerts.smtp.port must be a port number")
+    starttls = entry.get("starttls", True)
+    if not isinstance(starttls, bool):
+        raise ConfigError("alerts.smtp.starttls must be true or false")
+    names = {}
+    for key in ("username_env", "password_env"):
+        if key in entry:
+            names[key] = _string(entry[key], f"alerts.smtp.{key}")
+    if len(names) == 1:
+        raise ConfigError("alerts.smtp needs both username_env and password_env, or neither")
+    if names and not starttls:
+        raise ConfigError("alerts.smtp: a password is only sent with starttls: true")
+    return Smtp(
+        host=_string(entry["host"], "alerts.smtp.host"),
+        sender=_address(entry["sender"], "alerts.smtp.sender"),
+        port=port,
+        starttls=starttls,
+        **names,
+    )
+
+
+def _address(value: Any, where: str) -> str:
+    # Line breaks would let a value add headers to the message.
+    if not isinstance(value, str) or not re.fullmatch(r"[^@\s,<>]+@[^@\s,<>]+", value):
+        raise ConfigError(f"{where}: {value!r} is not an email address")
+    return value
 
 
 def _mapping(data: Any, where: str, required: set[str], optional: set[str]) -> dict[str, Any]:

@@ -10,12 +10,9 @@ from contextlib import closing, nullcontext
 from pathlib import Path
 
 from reviewproof.canonical import utc_now
+from reviewproof.cli.common import EXIT_ERROR, EXIT_FAILED, EXIT_OK
 from reviewproof.store.eventlog import Head, VerifyResult, verify
 from reviewproof.store.schema import StoreError, open_readonly
-
-EXIT_OK = 0
-EXIT_FAILED = 1  # the evidence did not verify
-EXIT_ERROR = 2  # verification could not be run, or the export could not be written
 
 _MAX_REGISTRY_LINES = 20
 _HEAD_FORMAT = 1
@@ -48,7 +45,7 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def run(args: argparse.Namespace) -> int:
     try:
-        expected = _read_head(Path(args.expect_head)) if args.expect_head else None
+        expected = read_head(Path(args.expect_head)) if args.expect_head else None
         planted_db = (
             closing(open_readonly(args.planted, "planted")) if args.planted else nullcontext()
         )
@@ -106,7 +103,7 @@ def _report(result: VerifyResult, expected: Head | None) -> None:
         )
 
 
-def _read_head(path: Path) -> Head:
+def read_head(path: Path) -> Head:
     try:
         content = json.loads(path.read_text(encoding="utf-8"))
         if content["format_version"] != _HEAD_FORMAT:

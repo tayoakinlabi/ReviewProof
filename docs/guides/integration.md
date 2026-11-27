@@ -2,8 +2,7 @@
 
 For the engineer who connects ReviewProof to an application.
 
-> **Status:** ReviewProof is pre-release and not pre-validated. Reports and metrics are not built
-> yet.
+> **Status:** ReviewProof is pre-release and not pre-validated.
 
 ## Rules that keep planted errors safe
 
@@ -132,6 +131,20 @@ rp verify --db oversight.db --planted planted.db --expect-head head-2026-11-26.j
 
 Run the first on a schedule, and keep each exported file **where ReviewProof cannot write**.
 Back up both databases together.
+
+## Reports and alerts
+
+QA staff do not need a terminal: schedule these and send them the results.
+
+```bash
+rp report --since 7d --out report.html     # one page for the QA lead
+rp alerts --since 30d --send               # to the QA lead set in the settings
+```
+
+`rp report` exits with status 1, and shows no scores, if the evidence does not verify. Make
+your scheduled job treat any status other than 0 as something to look at. Send reports with
+individual results (`--individuals`) only to QA. See the [command reference](../cli.md) for
+the settings and for how every figure is defined.
 
 ## Test it in your own environment
 

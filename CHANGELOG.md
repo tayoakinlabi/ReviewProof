@@ -3,6 +3,25 @@
 ReviewProof uses semantic versions. Before 1.0.0, any release may change the API or the
 database format. Each release says what a validated user would need to retest.
 
+## Unreleased
+
+### Added
+
+- Metrics from verified evidence: catch rate with 95% intervals, by defect class, fast
+  approvals, review time, agreement, workload, and fatigue through a session.
+- A one-page HTML report and a CSV report, with individual results only on request.
+- Thresholds, with alerts to the QA lead by email or webhook.
+- Commands: `rp init`, `rp system register`, `rp plant`, `rp report` and `rp alerts`.
+- A reviewer simulator, and an end-to-end demo with synthetic data.
+- Settings: optional `reporting` and `alerts` sections, and per-queue `thresholds`.
+
+### Change impact
+
+The database format, event log, gate and execution guard are unchanged from 0.1.0, so
+existing databases work. A validated user would need to test the new figures and reports
+against their intended use before relying on them. The definitions are in
+[ADR-004](docs/adr/0004-metrics-and-reports.md).
+
 ## 0.1.0 (2026-11-26)
 
 The first release with working code: the safety core. **Pre-release: not for production use.**

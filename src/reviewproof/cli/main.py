@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Sequence
 
 from reviewproof import __version__
-from reviewproof.cli import verify
+from reviewproof.cli import plant, report, setup, verify
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -16,6 +16,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"rp {__version__}")
     subparsers = parser.add_subparsers(title="commands", metavar="COMMAND")
+    setup.add_parsers(subparsers)
+    plant.add_parser(subparsers)
+    report.add_parsers(subparsers)
     verify.add_parser(subparsers)
     return parser
 
