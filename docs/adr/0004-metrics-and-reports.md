@@ -1,6 +1,6 @@
 # ADR-004: Metrics, thresholds and reports
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-26
 
 ## Context
@@ -51,8 +51,8 @@ Each rule is **breach**, **ok** or **not enough data**, and the last is never sh
 | Load | A reviewer decides over the daily cap (only if a cap is set) | |
 | Safety | The guard stopped a reserved target ID, or could not complete a check | |
 
-The spec does not say how many examples a class or a week needs, what "rolling" and
-"falling" mean, or how a session is defined. Those choices above are new.
+The sample sizes for a class or a week, the meanings of "rolling" and "falling", and the
+definition of a session are choices made in this record.
 
 ### Privacy
 

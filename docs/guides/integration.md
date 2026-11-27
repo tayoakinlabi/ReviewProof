@@ -79,6 +79,11 @@ with Oversight("examples/deviation_triage/reviewproof.yaml", "deviation-triage")
 assert written == ["QMS-301"]
 ```
 
+- **Call `submit()` only once for each proposal.** Every call creates a new item and another
+  chance of a planted error. Some workflow and agent frameworks run code again when they
+  resume: [LangGraph](https://docs.langchain.com/oss/python/langgraph/interrupts), for
+  example, restarts a paused node from its beginning. Call `submit()` in a step that has
+  finished before the pause, not in the step that waits.
 - Keep each `ticket.token` with the item in your queue. It is a secret: do not log it.
 - For an edit, pass the whole edited item as `final_payload` to `decided()`, then the same item
   to `execute()`. ReviewProof works out which fields changed.
