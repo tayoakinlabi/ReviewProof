@@ -5,6 +5,17 @@ database format. Each release says what a validated user would need to retest.
 
 ## Unreleased
 
+### Fixed
+
+These concern reporting code that no release contains yet.
+
+- A report on a queue, version or site whose figures rested on one reviewer with too few
+  planted errors withheld their scores, but still showed their share of fast approvals,
+  review time and agreement. With no planted errors at all it withheld nothing, and an alert
+  about fast approvals could describe that one person. All figures about how someone
+  reviewed, each part of them, and the checks made from them are now withheld. If you made
+  reports from the source before this change, check who received them.
+
 ### Added
 
 - Metrics from verified evidence: catch rate with 95% intervals, by defect class, fast

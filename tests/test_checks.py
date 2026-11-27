@@ -19,7 +19,7 @@ from reviewproof.metrics.checks import (
     evaluate,
     reviewer_flags,
 )
-from reviewproof.metrics.measures import fatigue, sessions, summarise
+from reviewproof.metrics.measures import fatigue, one_reviewer_rule, sessions, summarise
 from reviewproof.metrics.projection import Refusal
 from reviewproof.models import Decision, DefectClass
 
@@ -265,6 +265,148 @@ def test_no_data_is_never_a_pass():
     assert all(state is State.NOT_ENOUGH_DATA for rule, state in states.items() if rule != "safety")
     summary = summarise([], {}, MINIMUM)
     assert summary.catch.value is None and summary.dwell_ms is None
+
+
+# ----------------------------------------------------------------- one person's figures
+#
+# A group's figure that rests on one reviewer with fewer than ten planted errors is that
+# person's figure, whichever figure it is and however the group is broken down.
+
+
+def rule(records):
+    return one_reviewer_rule(records, LIMITS.individual_min_planted)
+
+
+def by_rule(records, limits=LIMITS):
+    return {c.rule: c for c in evaluate(records, places(records), MINIMUM, limits)}
+
+
+def summary_of(records):
+    return summarise(records, places(records), MINIMUM, rule(records))
+
+
+def two_people(count, **arguments):
+    return [record(reviewer=f"r-{n % 2}", **arguments) for n in range(count)]
+
+
+def one_seen_by_two():
+    return planted_run([True] * 12, reviewer="r-1") + planted_run(
+        [False] * 3, reviewer="r-2", defect=DefectClass.WRONG_VALUE
+    )
+
+
+@pytest.mark.req("REQ-040")
+def test_a_lone_reviewers_fast_approvals_raise_no_alert():
+    records = [record(dwell=1) for _ in range(12)]
+    check = by_rule(records)["fast_approvals"]
+    assert check.state is State.NOT_ENOUGH_DATA and "Withheld" in check.detail
+    assert "%" not in check.detail
+    assert summary_of(records).fast.withheld
+
+
+@pytest.mark.req("REQ-040")
+def test_a_lone_reviewer_with_enough_planted_errors_is_shown():
+    records = planted_run([True] * 10) + [record(dwell=1) for _ in range(12)]
+    assert by_rule(records)["fast_approvals"].state is State.BREACH
+    summary = summary_of(records)
+    assert not summary.fast.withheld and not summary.catch.withheld
+    assert summary.dwell_ms is not None and not summary.dwell_withheld
+
+
+@pytest.mark.req("REQ-040")
+def test_approvals_that_are_all_one_persons_are_withheld():
+    # Two people decide, but only one ever approves.
+    records = [record(reviewer="r-1", dwell=1) for _ in range(12)] + [
+        record(reviewer="r-2", decision=Decision.REJECT) for _ in range(12)
+    ]
+    check = by_rule(records)["fast_approvals"]
+    assert check.state is State.NOT_ENOUGH_DATA and "Withheld" in check.detail
+    summary = summary_of(records)
+    assert summary.fast.withheld
+    # Both contributed to these.
+    assert not summary.agreement.withheld and summary.dwell_ms is not None
+
+
+@pytest.mark.req("REQ-040")
+@pytest.mark.parametrize(
+    ("shared_week_dwell", "state"), [(1, State.BREACH), (60, State.NOT_ENOUGH_DATA)]
+)
+def test_a_week_that_is_one_persons_is_not_described(shared_week_dwell, state):
+    shared = two_people(20, dwell=shared_week_dwell)
+    alone = [
+        record(reviewer="r-9", dwell=1, at=MONDAY + timedelta(weeks=1, minutes=n))
+        for n in range(12)
+    ]
+    check = by_rule(shared + alone)["fast_approvals"]
+    assert "week 11" not in check.detail
+    # A breach two people share is still reported. Without one, the hidden week means the
+    # queue cannot be called within its limit.
+    assert check.state is state
+    assert ("week 10" if state is State.BREACH else "Withheld") in check.detail
+
+
+@pytest.mark.req("REQ-040")
+def test_a_breakdown_that_is_one_persons_is_withheld():
+    summary = summary_of(one_seen_by_two())
+    assert not summary.catch.withheld and summary.catch.total == 15
+    assert not summary.classes[DefectClass.OMISSION].withheld
+    hidden = summary.classes[DefectClass.WRONG_VALUE]
+    assert hidden.withheld and (hidden.successes, hidden.total, hidden.value) == (0, 0, None)
+
+
+@pytest.mark.req("REQ-040")
+def test_a_kind_of_error_judged_from_one_person_is_not_described():
+    # Possible only when the settings judge a kind from fewer examples than the minimum.
+    limits = replace(LIMITS, min_sample=3)
+    check = by_rule(one_seen_by_two(), limits)["defect_class"]
+    assert check.state is State.NOT_ENOUGH_DATA and "Withheld" in check.detail
+    assert "wrong value" not in check.detail
+
+
+@pytest.mark.req("REQ-040")
+def test_every_part_of_a_lone_reviewers_session_figures_is_withheld():
+    result = summary_of(planted_run([True] * 3)).fatigue  # two early in the session, one late
+    parts = [result.early, result.late, *result.by_position.values(), *result.by_hour.values()]
+    assert result.by_position and result.by_hour
+    assert all(part.withheld and part.total == 0 for part in parts)
+
+
+@pytest.mark.req("REQ-040")
+def test_a_place_in_the_session_that_only_one_person_reached_is_withheld():
+    first = planted_run([True] * 10, reviewer="r-1")  # positions 1 to 10
+    later = [record(reviewer="r-2", minute=500 + n) for n in range(11)] + [
+        record(planted=True, reviewer="r-2", minute=511 + n) for n in range(3)
+    ]  # r-2's planted errors come 12th to 14th, a place r-1 never reached
+    summary = summary_of(first + later)
+    assert not summary.catch.withheld
+    assert summary.fatigue.by_position["11-25"].withheld
+    assert not summary.fatigue.by_position["1-10"].withheld
+
+
+@pytest.mark.req("REQ-040")
+@pytest.mark.parametrize("rule_name", ["catch_rate", "agreement"])
+def test_a_window_or_half_that_is_one_persons_is_not_judged(rule_name):
+    # With a higher minimum, each half is one person's while the whole is two people's.
+    limits = replace(LIMITS, individual_min_planted=20, rolling_window=10)
+    records = (
+        planted_run([True] * 10, reviewer="r-1")
+        + planted_run([False] * 10, reviewer="r-2")
+        + two_people(100)
+    )
+    check = by_rule(records, limits)[rule_name]
+    assert check.state is State.NOT_ENOUGH_DATA and "Withheld" in check.detail
+
+
+@pytest.mark.req("REQ-040")
+@pytest.mark.parametrize("alone_in", ["early", "late"])
+def test_fatigue_is_not_judged_when_a_half_is_one_persons(alone_in):
+    # In sessions of two, r-1 has a planted error in both halves and r-2 in one of them.
+    first, second = planted_run([True, True], reviewer="r-1")
+    theirs = [record(reviewer="r-2", minute=900), record(reviewer="r-2", minute=901)]
+    slot = 1 if alone_in == "early" else 0
+    theirs[slot] = record(planted=True, reviewer="r-2", minute=900 + slot)
+    check = by_rule([first, second, *theirs])["fatigue"]
+    assert check.state is State.NOT_ENOUGH_DATA and "Withheld" in check.detail
 
 
 # ----------------------------------------------------------------- individual flags

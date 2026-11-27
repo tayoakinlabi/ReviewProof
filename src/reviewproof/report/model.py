@@ -2,11 +2,13 @@
 
 **Reviewer privacy.** By default a report is about the system: no reviewer is named. Individual
 results are included only when asked for, are never calculated for fewer planted errors than the
-queue's minimum (10 or more), and always sit next to that person's workload. A group score that
-rests on a single reviewer *is* that person's score, so it is held back under the same rule.
+queue's minimum (10 or more), and always sit next to that person's workload. A group's figure
+that rests on a single reviewer *is* that person's figure, so it is held back under the same
+rule: scores, and also how fast they approved and how often they agreed with the AI.
 
-One limit: someone who has both a group score and every other member's score can work out a
-hidden one by subtraction. Individual reports are for QA only, under a written policy.
+One limit: subtraction can work out a hidden figure, from a total and its other parts, or from
+a group's figure and every other member's. Individual reports are for QA only, under a written
+policy.
 """
 
 from __future__ import annotations
@@ -14,20 +16,24 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Sequence
 from contextlib import closing
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 from reviewproof.config import Config, QueueConfig, Thresholds
-from reviewproof.metrics.checks import Check, Flag, State, evaluate, reviewer_flags
-from reviewproof.metrics.measures import Place, Summary, scored, sessions, summarise
+from reviewproof.metrics.checks import Check, Flag, evaluate, reviewer_flags
+from reviewproof.metrics.measures import (
+    Place,
+    Summary,
+    one_reviewer_rule,
+    scored,
+    sessions,
+    summarise,
+)
 from reviewproof.metrics.projection import ItemRecord, Projection, parse_time
 from reviewproof.planted import PlantedLibrary
 from reviewproof.store.eventlog import Head
 from reviewproof.store.schema import StoreError, open_readonly
-
-#: Checks that are made from planted-error scores.
-_SCORE_CHECKS = ("catch_rate", "defect_class", "agreement", "fatigue")
 
 
 class ReportError(ValueError):
@@ -39,9 +45,13 @@ class Group:
     """Results for some set of items: a version of the AI system, or a site."""
 
     label: str
+    #: Its figures say whether they were withheld to protect a single reviewer.
     summary: Summary
-    #: True when the planted-error scores are withheld to protect a single reviewer.
-    withheld: bool
+
+    @property
+    def withheld(self) -> bool:
+        """Whether the group's catch rate is withheld."""
+        return self.summary.catch.withheld
 
 
 @dataclass(frozen=True)
@@ -79,11 +89,15 @@ class QueueReport:
     planted_rate: float
     thresholds: Thresholds
     summary: Summary
-    withheld: bool
     checks: tuple[Check, ...]
     programme: Programme
     #: None unless individual results were asked for.
     reviewers: tuple[ReviewerResult, ...] | None
+
+    @property
+    def withheld(self) -> bool:
+        """Whether the queue's catch rate is withheld."""
+        return self.summary.catch.withheld
 
 
 @dataclass(frozen=True)
@@ -141,8 +155,8 @@ def build(
     floor = max(config.queues[n].thresholds.individual_min_planted for n in names)
 
     def group(label: str, records: list[ItemRecord]) -> Group:
-        summary = summarise(records, places, minimum)
-        return Group(label, summary, identifies_one_person(records, floor))
+        hides = one_reviewer_rule(records, floor)
+        return Group(label, summarise(records, places, minimum, hides))
 
     def label_of(system_id: str) -> str:
         context = projection.contexts.get(system_id)
@@ -188,23 +202,6 @@ def in_period(record: ItemRecord, since: datetime | None) -> bool:
     return (record.decided_at or record.submitted_at) >= since
 
 
-def identifies_one_person(records: Sequence[ItemRecord], floor: int) -> bool:
-    counted = scored(records)
-    return len({r.reviewer for r in counted}) == 1 and len(counted) < floor
-
-
-def withhold(check: Check) -> Check:
-    """Hide a check's numbers when they would amount to an individual score."""
-    if check.rule not in _SCORE_CHECKS:
-        return check
-    return replace(
-        check,
-        state=State.NOT_ENOUGH_DATA,
-        detail="Withheld: with one reviewer and so few planted errors, this would be an "
-        "individual score.",
-    )
-
-
 def _queue(
     queue: QueueConfig,
     config: Config,
@@ -217,14 +214,12 @@ def _queue(
     individuals: bool,
 ) -> QueueReport:
     limits = queue.thresholds
-    summary = summarise(records, places, minimum)
-    withheld = identifies_one_person(records, limits.individual_min_planted)
+    hides = one_reviewer_rule(records, limits.individual_min_planted)
+    summary = summarise(records, places, minimum, hides)
     refusals = [
         r for r in projection.refusals if r.queue == queue.name and (not since or r.at >= since)
     ]
     checks = evaluate(records, places, minimum, limits, refusals)
-    if withheld:
-        checks = [withhold(check) for check in checks]
 
     library = PlantedLibrary(planted, config)
     counts: dict[str, int] = {}
@@ -254,7 +249,6 @@ def _queue(
         planted_rate=queue.planted_rate,
         thresholds=limits,
         summary=summary,
-        withheld=withheld,
         checks=tuple(checks),
         programme=programme,
         reviewers=reviewers,

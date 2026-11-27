@@ -42,7 +42,12 @@ def _safe(value: object) -> object:
     return value
 
 
+_WITHHELD = "withheld: would identify one reviewer"
+
+
 def _rate(metric: str, rate: Rate) -> dict:
+    if rate.withheld:
+        return {"metric": metric, "note": _WITHHELD}
     interval = rate.interval
     return {
         "metric": metric,
@@ -58,12 +63,10 @@ def _number(metric: str, value: float | None) -> dict:
     return {"metric": metric, "value": "" if value is None else value}
 
 
-def _summary(summary: Summary, withheld: bool) -> Iterator[dict]:
+def _summary(summary: Summary) -> Iterator[dict]:
     yield _number("decided", summary.decided)
-    if withheld:
-        yield {"metric": "catch_rate", "note": "withheld: would identify one reviewer"}
-    else:
-        yield _rate("catch_rate", summary.catch)
+    yield _rate("catch_rate", summary.catch)
+    if not summary.catch.withheld:
         for defect, rate in summary.classes.items():
             yield _rate(f"catch_rate_{defect.value}", rate)
         yield _rate("catch_rate_early_in_session", summary.fatigue.early)
@@ -73,7 +76,10 @@ def _summary(summary: Summary, withheld: bool) -> Iterator[dict]:
         for label, rate in summary.fatigue.by_hour.items():
             yield _rate(f"catch_rate_{label}", rate)
     yield _rate("fast_approval_share", summary.fast)
-    yield _number("median_dwell_ms", summary.dwell_ms)
+    if summary.dwell_withheld:
+        yield {"metric": "median_dwell_ms", "note": _WITHHELD}
+    else:
+        yield _number("median_dwell_ms", summary.dwell_ms)
     yield _rate("agreement_rate", summary.agreement)
     for name, value in vars(summary.load).items():
         yield _number(f"load_{name}", value)
@@ -88,7 +94,7 @@ def _rows(report: Report) -> Iterator[dict]:
     }
     for queue in report.queues:
         base = {"scope_type": "queue", "scope": queue.name, "queue": queue.name}
-        for row in _summary(queue.summary, queue.withheld):
+        for row in _summary(queue.summary):
             yield {**base, **row}
         for check in queue.checks:
             yield {
@@ -122,5 +128,5 @@ def _rows(report: Report) -> Iterator[dict]:
                 yield {**row_base, "metric": f"flag_{flag.kind}", "note": flag.text}
     for kind, groups in (("system_version", report.by_version), ("site", report.by_site)):
         for group in groups:
-            for row in _summary(group.summary, group.withheld):
+            for row in _summary(group.summary):
                 yield {"scope_type": kind, "scope": group.label, **row}

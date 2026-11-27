@@ -180,7 +180,13 @@ def _attention(checks: Sequence[Check]) -> str:
     return "\n".join(parts)
 
 
+#: Under a withheld figure, in a headline tile.
+_ONE_PERSON = "Too few for one person alone"
+
+
 def _share(rate: Rate) -> str:
+    if rate.withheld:
+        return "withheld"
     return "&ndash;" if rate.value is None else percent(rate.value)
 
 
@@ -190,7 +196,11 @@ def _range(rate: Rate) -> str:
 
 
 def _out_of(rate: Rate) -> str:
-    return f"{rate.successes} of {rate.total}"
+    return "withheld" if rate.withheld else f"{rate.successes} of {rate.total}"
+
+
+def _share_of(rate: Rate) -> str:
+    return "withheld" if rate.withheld else f"{_share(rate)} of {rate.total}"
 
 
 def _tile(title: str, value: str, lines: Sequence[str], lead: bool = False) -> str:
@@ -212,9 +222,7 @@ def _headline(queue: QueueReport) -> str:
     summary = queue.summary
     target = f"Target: at least {percent(queue.thresholds.catch_rate_min)}"
     if queue.withheld:
-        catch = _tile(
-            "Planted errors caught", "withheld", ["Too few for one person alone"], lead=True
-        )
+        catch = _tile("Planted errors caught", "withheld", [_ONE_PERSON], lead=True)
     else:
         rate = summary.catch
         lines = (
@@ -228,28 +236,30 @@ def _headline(queue: QueueReport) -> str:
         )
         catch = _tile("Planted errors caught", _share(rate), lines, lead=True)
     fast, agreement = summary.fast, summary.agreement
+    fast_lines = [
+        f"{_out_of(fast)} approvals under {queue.min_review_seconds:g} s",
+        f"Likely range: {_range(fast)}" if fast.total else "",
+    ]
+    agreement_lines = [
+        f"{_out_of(agreement)} real AI proposals",
+        f"Likely range: {_range(agreement)}" if agreement.total else "",
+    ]
     tiles = [
         catch,
         _tile(
             "Very fast approvals",
             _share(fast),
-            [
-                f"{_out_of(fast)} approvals under {queue.min_review_seconds:g} s",
-                f"Likely range: {_range(fast)}" if fast.total else "",
-            ],
+            [_ONE_PERSON] if fast.withheld else fast_lines,
         ),
         _tile(
             "Typical review time",
-            _dwell(summary.dwell_ms),
-            [f"Median over {summary.decided} items"],
+            "withheld" if summary.dwell_withheld else _dwell(summary.dwell_ms),
+            [_ONE_PERSON] if summary.dwell_withheld else [f"Median over {summary.decided} items"],
         ),
         _tile(
             "Accepted unchanged",
             _share(agreement),
-            [
-                f"{_out_of(agreement)} real AI proposals",
-                f"Likely range: {_range(agreement)}" if agreement.total else "",
-            ],
+            [_ONE_PERSON] if agreement.withheld else agreement_lines,
         ),
     ]
     return f'<div class="tiles">{"".join(tiles)}</div>'
@@ -263,7 +273,9 @@ def _classes(queue: QueueReport) -> str:
     limit = queue.thresholds.class_catch_rate_min
     rows = []
     for defect, rate in queue.summary.classes.items():
-        if rate.total < queue.thresholds.min_sample:
+        if rate.withheld:
+            note = f'<span class="small muted">{_ONE_PERSON.lower()}</span>'
+        elif rate.total < queue.thresholds.min_sample:
             note = '<span class="small muted">too few to judge</span>'
         elif rate.value < limit:
             note = '<span class="tag red">below limit</span>'
@@ -282,7 +294,7 @@ def _classes(queue: QueueReport) -> str:
 
 
 def _split(rates: dict[str, Rate]) -> str:
-    return "; ".join(f"{escape(name)}: {_share(r)} of {r.total}" for name, r in rates.items())
+    return "; ".join(f"{escape(name)}: {_share_of(r)}" for name, r in rates.items())
 
 
 def _workload(queue: QueueReport) -> str:
@@ -301,12 +313,11 @@ def _workload(queue: QueueReport) -> str:
             f"({load.sessions} sessions)",
         ),
     ]
-    if not queue.withheld and fatigue.early.total + fatigue.late.total:
+    if not queue.withheld and (fatigue.by_position or fatigue.by_hour):
         rows += [
             (
                 "Planted errors caught early and late in a session",
-                f"first half {_share(fatigue.early)} of {fatigue.early.total}; second half "
-                f"{_share(fatigue.late)} of {fatigue.late.total}",
+                f"first half {_share_of(fatigue.early)}; second half {_share_of(fatigue.late)}",
             ),
             ("By position in the session", _split(fatigue.by_position)),
             ("By hour of the session", _split(fatigue.by_hour)),
@@ -398,7 +409,7 @@ def _programme(queue: QueueReport) -> str:
 def _group_row(group: Group) -> str:
     summary = group.summary
     if group.withheld:
-        caught = '<td class="n muted" colspan="2">withheld</td>'
+        caught = '<td class="n muted" colspan="2">withheld</td>'  # the rate and its range
     else:
         caught = (
             f'<td class="n">{_share(summary.catch)} ({_out_of(summary.catch)})</td>'

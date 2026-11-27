@@ -296,7 +296,8 @@ def test_a_whole_workflow_uses_no_network(tmp_path, make, no_network, capsys):
         ov.planted.approve(planted.planted_error_id, "qa-2")
     for number in range(8):
         for ticket in ov.submit(item(number), key=f"run/{number}"):
-            decide(ov, ticket)
+            # Two people share the work: one person's speed alone would raise no alert.
+            decide(ov, ticket, reviewer=f"r-{number % 2}")
             ov.settle(ticket.token, ticket.payload)
             if ticket.payload == ITEMS[number]:
                 ov.execute_call(f"run/{number}", ticket.payload, lambda *call: None)
@@ -310,7 +311,8 @@ def test_a_whole_workflow_uses_no_network(tmp_path, make, no_network, capsys):
         assert main(arguments) == 0
     capsys.readouterr()
     assert main(["alerts", *with_settings]) == 0
-    assert "needs attention" in capsys.readouterr().out
+    printed = capsys.readouterr().out
+    assert "attention in queue deviation-triage" in printed and "Very fast approvals" in printed
     assert no_network == []
     # Asked to send, the same command does try, so only the missing --send was holding it back.
     assert main(["alerts", *with_settings, "--send"]) == 3

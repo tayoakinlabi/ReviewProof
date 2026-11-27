@@ -9,7 +9,7 @@ passed: for that, make a record from a test run, as the
 Nor does a tag show that the tests are enough for your use. The deployment duties have
 no tests here: they are yours to test.
 
-52 requirements, 185 tagged tests. A test may cover several requirements, and may run with several inputs.
+52 requirements, 197 tagged tests. A test may cover several requirements, and may run with several inputs.
 
 ## REQ-001
 
@@ -416,11 +416,23 @@ Show individual results only when asked, and only from at least 10 first-sight p
   - `test_email_to_the_qa_lead`
   - `test_the_message_is_about_the_queue`
 - [`tests/test_checks.py`](../tests/test_checks.py)
+  - `test_a_breakdown_that_is_one_persons_is_withheld`
+  - `test_a_kind_of_error_judged_from_one_person_is_not_described`
+  - `test_a_lone_reviewer_with_enough_planted_errors_is_shown`
+  - `test_a_lone_reviewers_fast_approvals_raise_no_alert`
+  - `test_a_place_in_the_session_that_only_one_person_reached_is_withheld`
+  - `test_a_week_that_is_one_persons_is_not_described`
+  - `test_a_window_or_half_that_is_one_persons_is_not_judged`
+  - `test_approvals_that_are_all_one_persons_are_withheld`
   - `test_evaluate_runs_every_rule_and_names_no_one`
+  - `test_every_part_of_a_lone_reviewers_session_figures_is_withheld`
+  - `test_fatigue_is_not_judged_when_a_half_is_one_persons`
 - [`tests/test_report.py`](../tests/test_report.py)
+  - `test_a_lone_reviewer_with_no_planted_errors_is_protected`
   - `test_individual_results_need_ten_planted_errors`
   - `test_no_reviewer_appears_unless_individual_results_are_asked_for`
   - `test_one_reviewers_group_score_is_withheld_like_an_individual_one`
+  - `test_one_reviewers_speed_and_agreement_are_withheld_too`
 - [`tests/test_reporting_config.py`](../tests/test_reporting_config.py)
   - `test_bad_routes`
   - `test_the_individual_minimum_can_only_be_raised`

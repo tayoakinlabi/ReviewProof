@@ -14,11 +14,16 @@ from enum import Enum
 from reviewproof.config import Thresholds
 from reviewproof.feedback import Outcome
 from reviewproof.metrics.measures import (
+    Hides,
     Place,
     agreement_rate,
+    approvals,
     by_defect_class,
     fast_approvals,
     fatigue,
+    nothing_hidden,
+    one_reviewer_rule,
+    real_decisions,
     scored,
 )
 from reviewproof.metrics.projection import ItemRecord, Refusal
@@ -53,11 +58,26 @@ def percent(value: float) -> str:
     return f"{value * 100:.0f}%"
 
 
-def check_catch_rate(records: Sequence[ItemRecord], limits: Thresholds) -> Check:
+def _withheld(rule: str, title: str) -> Check:
+    """Judging this would describe one person, so it is not judged, and never a pass."""
+    return Check(
+        rule,
+        title,
+        State.NOT_ENOUGH_DATA,
+        "Withheld: it rests on one reviewer with too few planted errors, so it would describe "
+        "that person.",
+    )
+
+
+def check_catch_rate(
+    records: Sequence[ItemRecord], limits: Thresholds, hides: Hides = nothing_hidden
+) -> Check:
     """The rolling catch rate over the latest planted errors."""
     latest = scored(records)[-limits.rolling_window :]
     rate = Rate.of([r.outcome is Outcome.CATCH for r in latest])
     title = "Planted errors caught"
+    if hides(latest):
+        return _withheld("catch_rate", title)
     if rate.total < limits.min_sample:
         return Check(
             "catch_rate",
@@ -73,15 +93,26 @@ def check_catch_rate(records: Sequence[ItemRecord], limits: Thresholds) -> Check
     return Check("catch_rate", title, state, detail)
 
 
-def check_classes(records: Sequence[ItemRecord], limits: Thresholds) -> Check:
+def check_classes(
+    records: Sequence[ItemRecord], limits: Thresholds, hides: Hides = nothing_hidden
+) -> Check:
     """Any defect class that slips through. One alert names all of them."""
     title = "Kinds of error"
-    judged = {
+    counted = scored(records)
+    if hides(counted):
+        return _withheld("defect_class", title)
+    enough = {
         defect: rate
         for defect, rate in by_defect_class(records).items()
         if rate.total >= limits.min_sample
     }
-    if not judged:
+    judged = {
+        defect: rate
+        for defect, rate in enough.items()
+        if not hides([r for r in counted if r.defect_class is defect])
+    }
+    hidden = len(judged) < len(enough)
+    if not enough:
         return Check(
             "defect_class",
             title,
@@ -101,6 +132,8 @@ def check_classes(records: Sequence[ItemRecord], limits: Thresholds) -> Check:
             State.BREACH,
             f"Below {percent(limits.class_catch_rate_min)}: {'; '.join(weak)}.",
         )
+    if hidden:
+        return _withheld("defect_class", title)
     return Check(
         "defect_class",
         title,
@@ -111,7 +144,10 @@ def check_classes(records: Sequence[ItemRecord], limits: Thresholds) -> Check:
 
 
 def check_fast_approvals(
-    records: Sequence[ItemRecord], min_seconds: Mapping[str, float], limits: Thresholds
+    records: Sequence[ItemRecord],
+    min_seconds: Mapping[str, float],
+    limits: Thresholds,
+    hides: Hides = nothing_hidden,
 ) -> Check:
     """Judged week by week (ISO weeks, UTC). One alert names every week over the limit."""
     title = "Very fast approvals"
@@ -121,11 +157,15 @@ def check_fast_approvals(
             year, week, _ = record.decided_at.isocalendar()
             weeks[year, week].append(record)
     judged = {}
+    hidden = False
     for week, decided in sorted(weeks.items()):
         rate = fast_approvals(decided, min_seconds)
         if rate.total >= limits.min_sample:
-            judged[week] = rate
-    if not judged:
+            if hides(approvals(decided)):
+                hidden = True
+            else:
+                judged[week] = rate
+    if not judged and not hidden:
         return Check(
             "fast_approvals",
             title,
@@ -145,6 +185,8 @@ def check_fast_approvals(
             State.BREACH,
             f"More than {limit} were faster than the minimum review time in {'; '.join(over)}.",
         )
+    if hidden:
+        return _withheld("fast_approvals", title)
     return Check(
         "fast_approvals",
         title,
@@ -153,7 +195,9 @@ def check_fast_approvals(
     )
 
 
-def check_agreement(records: Sequence[ItemRecord], limits: Thresholds) -> Check:
+def check_agreement(
+    records: Sequence[ItemRecord], limits: Thresholds, hides: Hides = nothing_hidden
+) -> Check:
     """Near-total agreement while catching less: a sign of approving on habit.
 
     "Falling" compares the later half of the planted errors with the earlier half.
@@ -162,6 +206,8 @@ def check_agreement(records: Sequence[ItemRecord], limits: Thresholds) -> Check:
     agreement = agreement_rate(records)
     counted = scored(records)
     half = len(counted) // 2
+    if hides(real_decisions(records)):
+        return _withheld("agreement", title)
     if agreement.total < limits.min_sample or half < limits.min_sample:
         return Check(
             "agreement",
@@ -170,6 +216,8 @@ def check_agreement(records: Sequence[ItemRecord], limits: Thresholds) -> Check:
             f"Judging a trend needs {2 * limits.min_sample} planted errors and "
             f"{limits.min_sample} real items; there are {len(counted)} and {agreement.total}.",
         )
+    if hides(counted[:half]) or hides(counted[half:]):
+        return _withheld("agreement", title)
     earlier = Rate.of([r.outcome is Outcome.CATCH for r in counted[:half]])
     later = Rate.of([r.outcome is Outcome.CATCH for r in counted[half:]])
     falling = later.value < earlier.value
@@ -182,10 +230,15 @@ def check_agreement(records: Sequence[ItemRecord], limits: Thresholds) -> Check:
 
 
 def check_fatigue(
-    records: Sequence[ItemRecord], places: Mapping[str, Place], limits: Thresholds
+    records: Sequence[ItemRecord],
+    places: Mapping[str, Place],
+    limits: Thresholds,
+    hides: Hides = nothing_hidden,
 ) -> Check:
     title = "Attention late in sessions"
-    result = fatigue(records, places)
+    result = fatigue(records, places, hides)
+    if result.early.withheld or result.late.withheld:
+        return _withheld("fatigue", title)
     if min(result.early.total, result.late.total) < limits.min_sample:
         return Check(
             "fatigue",
@@ -252,13 +305,16 @@ def evaluate(
     limits: Thresholds,
     refusals: Sequence[Refusal] = (),
 ) -> list[Check]:
-    """Every rule for one queue."""
+    """Every rule for one queue. No check describes one person's work unless they have
+    enough planted errors for their own results to be shown (``one_reviewer_rule``).
+    """
+    hides = one_reviewer_rule(records, limits.individual_min_planted)
     checks = [
-        check_catch_rate(records, limits),
-        check_classes(records, limits),
-        check_fast_approvals(records, min_seconds, limits),
-        check_agreement(records, limits),
-        check_fatigue(records, places, limits),
+        check_catch_rate(records, limits, hides),
+        check_classes(records, limits, hides),
+        check_fast_approvals(records, min_seconds, limits, hides),
+        check_agreement(records, limits, hides),
+        check_fatigue(records, places, limits, hides),
         check_load(records, limits),
         check_safety(refusals),
     ]

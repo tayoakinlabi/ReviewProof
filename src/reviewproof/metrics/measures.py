@@ -7,8 +7,8 @@ tiredness does not stop at the edge of a queue or a report period.
 
 from __future__ import annotations
 
-from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections import Counter, defaultdict
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
 from statistics import median
@@ -78,32 +78,66 @@ def scored(records: Iterable[ItemRecord]) -> list[ItemRecord]:
     return sorted(counted, key=lambda r: (r.decided_at, r.decided_event))
 
 
-def catch_rate(records: Iterable[ItemRecord]) -> Rate:
+#: Given the decided items a figure is worked out from, says whether to withhold it.
+Hides = Callable[[Sequence[ItemRecord]], bool]
+
+
+def nothing_hidden(basis: Sequence[ItemRecord]) -> bool:
+    return False
+
+
+def one_reviewer_rule(scope: Iterable[ItemRecord], floor: int) -> Hides:
+    """Protect one person within a group's figures (ADR-004). A figure worked out from the
+    items of a single reviewer is that person's figure, so it is withheld unless ``scope``
+    holds at least ``floor`` planted errors that they decided at first sight.
+
+    The rule applies to every figure and every breakdown of it, each judged by its own items.
+    It cannot stop someone working a hidden figure out by subtraction from the others.
+    """
+    planted = Counter(r.reviewer for r in scored(scope))
+
+    def hides(basis: Sequence[ItemRecord]) -> bool:
+        reviewers = {r.reviewer for r in basis}
+        return len(reviewers) == 1 and planted[reviewers.pop()] < floor
+
+    return hides
+
+
+def _rate(basis: Sequence[ItemRecord], success: Callable, hides: Hides) -> Rate:
+    return Rate.hidden() if hides(basis) else Rate.of([success(r) for r in basis])
+
+
+def _caught(record: ItemRecord) -> bool:
+    return record.outcome is Outcome.CATCH
+
+
+def catch_rate(records: Iterable[ItemRecord], hides: Hides = nothing_hidden) -> Rate:
     """Planted errors caught out of planted errors decided on at first sight."""
-    return Rate.of([r.outcome is Outcome.CATCH for r in scored(records)])
+    return _rate(scored(records), _caught, hides)
 
 
-def by_defect_class(records: Sequence[ItemRecord]) -> dict[DefectClass, Rate]:
+def by_defect_class(
+    records: Sequence[ItemRecord], hides: Hides = nothing_hidden
+) -> dict[DefectClass, Rate]:
     """The catch rate for each class that has been decided on."""
     counted = scored(records)
-    return {
-        defect: Rate.of([r.outcome is Outcome.CATCH for r in counted if r.defect_class is defect])
-        for defect in DefectClass
-        if any(r.defect_class is defect for r in counted)
-    }
+    by_class = {d: [r for r in counted if r.defect_class is d] for d in DefectClass}
+    return {defect: _rate(basis, _caught, hides) for defect, basis in by_class.items() if basis}
 
 
-def fast_approvals(records: Iterable[ItemRecord], min_seconds: Mapping[str, float]) -> Rate:
+def approvals(records: Iterable[ItemRecord]) -> list[ItemRecord]:
+    return [r for r in records if r.decision is Decision.APPROVE]
+
+
+def fast_approvals(
+    records: Iterable[ItemRecord],
+    min_seconds: Mapping[str, float],
+    hides: Hides = nothing_hidden,
+) -> Rate:
     """Approvals made faster than the queue's minimum review time, out of all approvals.
     Planted items count: this measures how the reviewer behaved.
     """
-    return Rate.of(
-        [
-            r.dwell_ms < min_seconds[r.queue] * 1000
-            for r in records
-            if r.decision is Decision.APPROVE
-        ]
-    )
+    return _rate(approvals(records), lambda r: r.dwell_ms < min_seconds[r.queue] * 1000, hides)
 
 
 def median_dwell_ms(records: Iterable[ItemRecord]) -> float | None:
@@ -112,11 +146,15 @@ def median_dwell_ms(records: Iterable[ItemRecord]) -> float | None:
     return median(times) if times else None
 
 
-def agreement_rate(records: Iterable[ItemRecord]) -> Rate:
+def real_decisions(records: Iterable[ItemRecord]) -> list[ItemRecord]:
+    return [r for r in records if r.decided and not r.planted]
+
+
+def agreement_rate(records: Iterable[ItemRecord], hides: Hides = nothing_hidden) -> Rate:
     """Real AI proposals accepted unchanged, out of real proposals decided. Planted items are
     left out: they are not the AI's proposals.
     """
-    return Rate.of([r.decision is Decision.APPROVE for r in records if r.decided and not r.planted])
+    return _rate(real_decisions(records), lambda r: r.decision is Decision.APPROVE, hides)
 
 
 @dataclass(frozen=True)
@@ -168,29 +206,31 @@ class Fatigue:
         return self.early.value - self.late.value
 
 
-def fatigue(records: Sequence[ItemRecord], places: Mapping[str, Place]) -> Fatigue:
-    counted = [(r.outcome is Outcome.CATCH, places[r.item_id]) for r in scored(records)]
-    by_position = {
-        label: Rate.of(
-            [
-                caught
-                for caught, place in counted
-                if first <= place.position and (last is None or place.position <= last)
-            ]
-        )
-        for label, first, last in POSITION_BUCKETS
-    }
-    by_hour = {
-        label: Rate.of(
-            [caught for caught, place in counted if min(place.hour, len(HOUR_BUCKETS)) == number]
-        )
-        for number, label in enumerate(HOUR_BUCKETS, start=1)
-    }
+def fatigue(
+    records: Sequence[ItemRecord],
+    places: Mapping[str, Place],
+    hides: Hides = nothing_hidden,
+) -> Fatigue:
+    counted = scored(records)
+    by_position, by_hour = {}, {}
+    for label, first, last in POSITION_BUCKETS:
+        by_position[label] = [
+            r
+            for r in counted
+            if first <= places[r.item_id].position
+            and (last is None or places[r.item_id].position <= last)
+        ]
+    for number, label in enumerate(HOUR_BUCKETS, start=1):
+        by_hour[label] = [
+            r for r in counted if min(places[r.item_id].hour, len(HOUR_BUCKETS)) == number
+        ]
+    early = [r for r in counted if places[r.item_id].early]
+    late = [r for r in counted if not places[r.item_id].early]
     return Fatigue(
-        early=Rate.of([caught for caught, place in counted if place.early]),
-        late=Rate.of([caught for caught, place in counted if not place.early]),
-        by_position={k: v for k, v in by_position.items() if v.total},
-        by_hour={k: v for k, v in by_hour.items() if v.total},
+        early=_rate(early, _caught, hides),
+        late=_rate(late, _caught, hides),
+        by_position={k: _rate(v, _caught, hides) for k, v in by_position.items() if v},
+        by_hour={k: _rate(v, _caught, hides) for k, v in by_hour.items() if v},
     )
 
 
@@ -211,24 +251,32 @@ class Summary:
     repeats: Rate
     #: Planted items shown to someone but not yet decided. Not counted as misses.
     pending_planted: int
+    #: ``dwell_ms`` was held back to protect one reviewer, rather than there being none.
+    dwell_withheld: bool = False
 
 
 def summarise(
     records: Sequence[ItemRecord],
     places: Mapping[str, Place],
     min_seconds: Mapping[str, float],
+    hides: Hides = nothing_hidden,
 ) -> Summary:
+    """For a group, pass ``one_reviewer_rule``. Counts of work done are never withheld,
+    because load explains results.
+    """
     decided = [r for r in records if r.decided]
+    dwell_withheld = hides(decided)
     return Summary(
         decided=len(decided),
         decided_real=sum(not r.planted for r in decided),
-        catch=catch_rate(decided),
-        classes=by_defect_class(decided),
-        fast=fast_approvals(decided, min_seconds),
-        dwell_ms=median_dwell_ms(decided),
-        agreement=agreement_rate(decided),
+        catch=catch_rate(decided, hides),
+        classes=by_defect_class(decided, hides),
+        fast=fast_approvals(decided, min_seconds, hides),
+        dwell_ms=None if dwell_withheld else median_dwell_ms(decided),
+        dwell_withheld=dwell_withheld,
+        agreement=agreement_rate(decided, hides),
         load=load(decided, places),
-        fatigue=fatigue(decided, places),
+        fatigue=fatigue(decided, places, hides),
         repeats=Rate.of(
             [r.outcome is Outcome.CATCH for r in decided if r.planted and not r.first_sight]
         ),

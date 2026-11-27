@@ -34,10 +34,16 @@ class Rate:
 
     successes: int
     total: int
+    #: Held back to protect one reviewer. The counts are then zero: they are not kept.
+    withheld: bool = False
 
     @classmethod
     def of(cls, outcomes: list[bool]) -> Rate:
         return cls(sum(outcomes), len(outcomes))
+
+    @classmethod
+    def hidden(cls) -> Rate:
+        return cls(0, 0, withheld=True)
 
     @property
     def value(self) -> float | None:

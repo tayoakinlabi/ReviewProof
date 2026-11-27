@@ -140,7 +140,7 @@ def test_one_reviewers_group_score_is_withheld_like_an_individual_one(golden):
     since = datetime(2026, 3, 8, tzinfo=timezone.utc)  # only B worked after this
     report = make(golden, since=since)
     [queue] = report.queues
-    assert queue.withheld and queue.summary.catch.total == 4
+    assert queue.withheld and queue.summary.catch.total == 0  # the count is not kept
     states = {c.rule: c for c in queue.checks}
     for rule in ("catch_rate", "defect_class", "agreement", "fatigue"):
         assert states[rule].state is State.NOT_ENOUGH_DATA
@@ -151,6 +151,63 @@ def test_one_reviewers_group_score_is_withheld_like_an_individual_one(golden):
     assert "25%" not in text and "1 of 4" not in text and "By kind of error" not in text
     catch = [r for r in rows(report) if r["metric"].startswith("catch_rate")]
     assert catch and all(r["value"] == "" and "withheld" in r["note"] for r in catch)
+
+
+#: Figures that describe how reviewers reviewed, as opposed to how much.
+HOW = ("catch_rate", "fast_approval_share", "median_dwell_ms", "agreement_rate")
+HOW_TITLES = ("Very fast approvals", "Typical review time", "Accepted unchanged")
+
+
+def how_they_reviewed(report):
+    return [r for r in rows(report) if r["metric"].startswith(HOW)]
+
+
+@pytest.mark.req("REQ-040")
+def test_one_reviewers_speed_and_agreement_are_withheld_too(golden):
+    report = make(golden, since=datetime(2026, 3, 8, tzinfo=timezone.utc))  # only B
+    found = how_they_reviewed(report)
+    assert {r["scope_type"] for r in found} == {"queue", "system_version", "site"}
+    for row in found:
+        assert (row["successes"], row["total"], row["value"], row["ci_low"]) == ("", "", "", "")
+        assert "withheld" in row["note"], row
+    text = Text(html.render(report)).text
+    for title in HOW_TITLES:
+        assert f"{title} withheld" in text
+    for figure in ("89%", "8 of 9", "100%", "5 of 5", "6 s"):
+        assert figure not in text, figure
+
+    [queue] = report.queues
+    # Not merely left off the page: the report does not hold them.
+    assert queue.summary.fast.total == queue.summary.agreement.total == 0
+    assert queue.summary.dwell_ms is None
+    assert all(g.summary.fast.withheld for g in (*report.by_version, *report.by_site))
+    # How much they did is still shown, because load explains results.
+    assert queue.summary.load.max_per_day == queue.summary.decided == 10
+    assert "typically 10, most 10" in text
+
+
+@pytest.mark.req("REQ-040")
+def test_a_lone_reviewer_with_no_planted_errors_is_protected(deployment):
+    ov = deployment.open()
+    for number in range(12):
+        [ticket] = ov.submit(item(number))
+        ov.shown(ticket.token, "r-1")
+        ov.decided(ticket.token, "r-1", "approve")
+    projection = load(deployment.db, deployment.planted_db)
+    report = build(projection, deployment.config, deployment.planted_db)
+    for row in how_they_reviewed(report):
+        assert row["value"] == "", row
+        # With no planted error decided, a catch rate is empty rather than hidden.
+        if not row["metric"].startswith("catch_rate"):
+            assert "withheld" in row["note"], row
+    text = Text(html.render(report)).text
+    for title in HOW_TITLES:
+        assert f"{title} withheld" in text
+    assert "100%" not in text
+    checks = {c.rule: c for c in report.queues[0].checks}
+    for rule in ("fast_approvals", "agreement"):
+        assert checks[rule].state is State.NOT_ENOUGH_DATA, rule
+        assert "Withheld" in checks[rule].detail, rule
 
 
 def test_since_keeps_only_later_decisions(golden):

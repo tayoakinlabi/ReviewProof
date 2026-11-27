@@ -197,7 +197,13 @@ makes no network call unless you set a route and run `rp alerts --send`.
 | Day and week | UTC calendar days and ISO weeks. |
 | Range | The 95% Wilson interval. |
 
-A group score that rests on one reviewer and fewer planted errors than
-`individual_min_planted` is withheld, because it would be that person's score. Someone who
-has a group score and all other members' scores could still work out a hidden one by
-subtraction.
+**One person's figures.** A queue's, version's or site's figure that rests on one reviewer
+with fewer than `individual_min_planted` planted errors in the report is that person's figure,
+so it is withheld: the catch rate, fast approvals, review time and agreement, and each part of
+them, such as one kind of error, one week or one position in a session. A threshold check
+that would need such a figure is not judged, so it raises no alert and is not shown as met.
+Counts of work done, such as items a day, are still shown, because load explains results.
+
+This does not stop **subtraction**. A hidden figure can sometimes be worked out from a total
+and its other parts, or from a group's figure and all other members' figures. Limit who sees
+reports as well.
