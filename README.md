@@ -15,7 +15,8 @@ records every review step in a tamper-evident log. It then reports how many were
 - It cannot stop an application that bypasses `execute()` and writes to its target directly.
 - In this version, everything a reviewer sees about an item must come from the item itself,
   because a planted error has no agent trace or retrieved sources behind it.
-- A validation pack to adapt is planned.
+- A [validation pack](validation-pack/README.md) to adapt is being written. It is incomplete,
+  and no outside quality specialist has reviewed it.
 - It sends no telemetry.
 
 ## Quickstart: run the demo

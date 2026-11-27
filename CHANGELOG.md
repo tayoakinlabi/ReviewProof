@@ -13,6 +13,9 @@ database format. Each release says what a validated user would need to retest.
 - Thresholds, with alerts to the QA lead by email or webhook.
 - Commands: `rp init`, `rp system register`, `rp plant`, `rp report` and `rp alerts`.
 - A reviewer simulator, and an end-to-end demo with synthetic data.
+- First part of a [validation pack](validation-pack/README.md) to adapt: intended-use and
+  risk assessment templates, and numbered requirements. It does not yet trace requirements to
+  tests.
 - Settings: optional `reporting` and `alerts` sections, and per-queue `thresholds`.
 - Qualification sessions: planted errors and correct items, a pass mark fixed in advance,
   and each reviewer's status for the current version of the AI system (`rp qualify`).

@@ -1,0 +1,52 @@
+# Validation pack
+
+For the validation lead and quality unit of an organisation that wants to use ReviewProof in
+regulated work.
+
+> **Status: draft, and incomplete.** ReviewProof is **not pre-validated**, and this pack does
+> not validate it for you. No outside quality specialist has reviewed it yet. It describes the
+> source code in this repository, which is **newer than the latest release on PyPI**.
+
+## What is here
+
+| Document | What you do with it |
+| --- | --- |
+| [Intended-use statement](intended-use.md) | Say what you will use ReviewProof for, which features, and which records |
+| [Risk assessment](risk-assessment.md) | Rate each foreseeable failure for your process, and assess the supplier |
+| [Requirements specification](requirements.md) | What the software must do, and the duties your deployment must meet |
+
+**Not written yet:** test scripts with expected results, a matrix tracing each requirement to
+tests, procedure (SOP) templates, a table of 21 CFR Part 11 controls, and a mapping to VITAL
+evidence categories. Until the tests are traced, **do not take a requirement here as shown to
+be met.**
+
+## How to use it
+
+1. Copy the three documents into your document system, under your own numbering and approval.
+2. Complete the **intended-use statement**. Everything else depends on it.
+3. Complete the **risk assessment**. Challenge each proposed rating.
+4. Go through the **requirements**. Mark those that do not apply, with the reason, and say how
+   you meet each deployment duty.
+5. Decide what assurance each needs, carry it out, and record the result.
+6. Repeat the assessment when anything listed in it changes.
+
+Text marked **[FILL]** is yours. Check the rest too: change what is not true of your use.
+
+## What this pack can and cannot show
+
+- The project's automated tests use **synthetic data**, where it is known exactly which items
+  are planted and what each figure should be. This checks the software.
+- It does **not** check the **method**: whether a catch rate on planted errors reflects how well
+  your reviewers catch real mistakes. That needs real reviewers on real work, and has not yet
+  been done.
+- **Your deployment** needs your own testing: synthetic data for early functional tests, then
+  data representative of your work, handled under your own rules.
+- The simulated demo's catch rates are not real-world results.
+
+## About the rules it refers to
+
+The risk assessment borrows its method from FDA's Computer Software Assurance guidance
+(February 2026). That guidance is **nonbinding**, and its stated scope is **medical device**
+production and quality management system software. This pack is not legal or regulatory advice,
+and does not claim that using it meets any regulation. Your quality unit decides which
+requirements and procedures apply to you.
