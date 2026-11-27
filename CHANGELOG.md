@@ -28,6 +28,9 @@ database format. Each release says what a validated user would need to retest.
 - Pydantic AI adapter, as `reviewproof[pydantic-ai]`, for Python 3.11 or later. **A failed
   reviewed tool raises `RunStopped`, which `except Exception` does not catch.** See the
   [guide](docs/guides/pydantic-ai.md).
+- Strands Agents adapter, as `reviewproof[strands]`. **`ReviewTools` must be passed in
+  `Agent(hooks=[...])`,** and background tasks must be off. See the
+  [guide](docs/guides/strands.md).
 
 ### Change impact
 

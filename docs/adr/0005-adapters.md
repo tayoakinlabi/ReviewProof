@@ -3,7 +3,8 @@
 - **Status:** Accepted
 - **Date:** 2026-11-26
 - **Amended:** 2026-11-27 ([LangGraph, and what the review queue can show](#amendment-of-2026-11-27);
-  [OpenAI Agents SDK](#amendment-openai-agents-sdk); [Pydantic AI](#amendment-pydantic-ai))
+  [OpenAI Agents SDK](#amendment-openai-agents-sdk); [Pydantic AI](#amendment-pydantic-ai);
+  [Strands Agents](#amendment-strands-agents))
 - **Amends:** ADR-003 (replay-safe `submit`, three new methods, and what server
   code can learn about a pair)
 
@@ -113,8 +114,8 @@ Approval inside the agent's own chat is not supported.
 
 ### 5. A failure after approval stops the run
 
-*Further conditions: [OpenAI Agents SDK](#amendment-openai-agents-sdk) and
-[Pydantic AI](#amendment-pydantic-ai).*
+*Further conditions: [OpenAI Agents SDK](#amendment-openai-agents-sdk),
+[Pydantic AI](#amendment-pydantic-ai) and [Strands Agents](#amendment-strands-agents).*
 
 If the guard refuses, or the write fails, or it ran but could not be logged, the error reaches
 the host. It must not become text that lets the model try again: a retry would be a new call,
@@ -281,3 +282,36 @@ Other failures inside an approved tool told the model something and let the run 
    run together, so after a failure others may have written. The shared tests allow a library
    that works this way, and require that nothing runs until all are decided. The host must keep
    only the newest messages and pause.
+
+## Amendment: Strands Agents
+
+**Accepted 2026-11-27. Found while building that adapter.** Observed with `strands-agents` 1.67.0 and a
+scripted model. Section 5 left stopping the run open for this library.
+
+| Observed | What happened |
+| --- | --- |
+| A tool raised an ordinary error | Its text went to the model, and the run continued. |
+| With the default executor, which runs tools together, a tool raised an error outside `Exception` | **It was lost.** The run continued and the model got no result for that call. |
+| A check only before the model is asked | A failure while another call was still waiting looked like an ordinary pause. The same happened when the run ended without asking the model. |
+| Background tasks on | The model was answered before the write finished. |
+| A retry hook | It ran the tool again. |
+
+1. **Stopping takes two checks.** A reviewed tool raises nothing. It marks the agent as failed,
+   in memory and in the agent's saved state, and ReviewProof's hooks raise `RunStopped` both
+   before the model is asked and when an invocation ends. The history says only that the action
+   did not complete. A failed agent stays failed, and its reviewed tools write nothing more.
+   `RunStopped` is an ordinary exception here, because the hooks raise it, not the tool. This
+   settles section 5 for this library: in tests the model was not asked again after a failure.
+2. **`ReviewTools` is also the hook provider, and the tools refuse to write unless the call
+   passed its pause.** Without the hooks nothing can stop the run: nothing is written, but the
+   model is told that the call did not complete. A tool that ReviewProof did not build, under a
+   reviewed name, is stopped before it runs.
+3. **Background tasks are refused.** This reads a private setting of the agent, because the
+   library offers no public one. If a release renames it, the test against the newest release
+   fails.
+4. **Each call pauses and resumes on its own.** A hook raises the pause, because a tool built
+   from the host's own argument schema was not found to be able to pause through public
+   interfaces. Saved sessions normally remember a failure. When a failed run was about to pause
+   for another call, the session can be the one from the earlier pause; resuming it ran the
+   failed call again, which the guard refused. The host must keep its own record of stopped runs.
+5. **Hooks or middleware that rewrite a reviewed tool's result are not supported.**
