@@ -186,15 +186,15 @@ def test_oversight_items_cannot_show_which_are_planted(oversight):
 
 
 @pytest.mark.parametrize(
-    ("create", "reopen"),
-    [(create_oversight_db, open_oversight_db), (create_planted_db, open_planted_db)],
+    ("create", "reopen", "versions"),
+    [(create_oversight_db, open_oversight_db, 3), (create_planted_db, open_planted_db, 2)],
 )
-def test_create_and_open_are_repeatable(tmp_path, create, reopen):
+def test_create_and_open_are_repeatable(tmp_path, create, reopen, versions):
     path = tmp_path / "with space #1.db"
     create(path).close()
     create(path).close()
     with closing(reopen(path)) as db:
-        assert db.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == 2
+        assert db.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == versions
     assert path.is_file()
 
 

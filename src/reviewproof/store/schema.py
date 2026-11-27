@@ -399,7 +399,32 @@ _PLANTED_V2: Migration = [
     "CREATE INDEX submission_keys_by_key ON submission_keys (queue_id, submission_key)",
 ]
 
-OVERSIGHT_MIGRATIONS: tuple[Migration, ...] = (_OVERSIGHT_V1, _OVERSIGHT_V2)
+# --------------------------------------------------------------------------- version 3
+# All of VITAL's risk categories (ADR-007). planted.db stays at version 2.
+
+
+def _check_categories_copied(connection: sqlite3.Connection) -> None:
+    """Refuse the upgrade unless every queue kept its rating."""
+    different = connection.execute(
+        "SELECT COUNT(*) FROM queues "
+        "WHERE vital_adjusted_category IS NOT vital_adjusted_category_v2"
+    ).fetchone()[0]
+    if different:
+        raise StoreError("a risk category was not copied exactly; the upgrade was undone")
+
+
+# SQLite cannot widen a CHECK constraint. Rebuilding queues fails on the foreign keys that
+# point at it, so the column is replaced instead. The old one stays, unused: dropping it would
+# need a newer SQLite.
+_OVERSIGHT_V3: Migration = [
+    "ALTER TABLE queues RENAME COLUMN vital_adjusted_category TO vital_adjusted_category_v2",
+    """ALTER TABLE queues ADD COLUMN vital_adjusted_category TEXT CHECK (
+        vital_adjusted_category IN ('low', 'medium', 'high', 'very_high', 'critical'))""",
+    "UPDATE queues SET vital_adjusted_category = vital_adjusted_category_v2",
+    _check_categories_copied,
+]
+
+OVERSIGHT_MIGRATIONS: tuple[Migration, ...] = (_OVERSIGHT_V1, _OVERSIGHT_V2, _OVERSIGHT_V3)
 PLANTED_MIGRATIONS: tuple[Migration, ...] = (_PLANTED_V1, _PLANTED_V2)
 
 

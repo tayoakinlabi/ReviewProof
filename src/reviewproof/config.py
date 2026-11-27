@@ -27,7 +27,8 @@ MAX_PLANTED_RATE = 0.5
 DEFAULT_RESERVED_TARGET_PREFIX = "rp-reserved-"
 MIN_RESERVED_PREFIX_LENGTH = 6
 
-_BASE_RISK = re.compile(r"A([1-9][0-9]?)")
+#: VITAL's ladder, A1 to A10, with a half step between neighbours (ADR-007).
+_BASE_RISK = re.compile(r"A(?:10|[1-9](?:\.5)?)")
 
 #: No individual score is ever shown from fewer planted errors than this.
 INDIVIDUAL_FLOOR = 10
@@ -38,19 +39,25 @@ class ConfigError(ValueError):
 
 
 def risk_tier(base_risk: str, adjusted_category: RiskCategory | None = None) -> int:
-    """Return the tier (0, 1 or 2) for a VITAL base risk such as ``A5``.
+    """Return the tier (0, 1 or 2) for a VITAL base risk such as ``A5`` or ``A5.5``.
 
-    A1-A4 is tier 0, A5-A6 tier 1, A7 and above tier 2. A High risk-adjusted category moves a
-    queue up one tier, and the top tier stays where it is.
+    A1-A4 is tier 0, A5-A6 tier 1 and A7-A10 tier 2. A half step takes the next whole step's
+    tier. A High risk-adjusted category moves a queue up one tier, and the top tier stays where
+    it is. Very High and Critical take the top tier.
     """
-    match = _BASE_RISK.fullmatch(base_risk) if isinstance(base_risk, str) else None
-    if match is None:
-        raise ConfigError(f"vital_base_risk must look like A1, A5 or A7, not {base_risk!r}")
-    level = int(match.group(1))
+    if not isinstance(base_risk, str) or not _BASE_RISK.fullmatch(base_risk):
+        raise ConfigError(
+            "vital_base_risk must be from A1 to A10, or a half step such as A5.5, "
+            f"not {base_risk!r}"
+        )
+    level = math.ceil(float(base_risk[1:]))
+    top = len(TIER_RATES) - 1
+    if adjusted_category in (RiskCategory.VERY_HIGH, RiskCategory.CRITICAL):
+        return top
     tier = 0 if level <= 4 else 1 if level <= 6 else 2
     if adjusted_category is RiskCategory.HIGH:
         tier += 1
-    return min(tier, len(TIER_RATES) - 1)
+    return min(tier, top)
 
 
 @dataclass(frozen=True)
@@ -224,7 +231,7 @@ def _parse_queue(data: Any, where: str, base_dir: Path, defaults: Thresholds) ->
 
     category = entry.get("vital_adjusted_category")
     if category is not None:
-        category = _choice(category, RiskCategory, f"{where}.vital_adjusted_category")
+        category = _risk_category(category, f"{where}.vital_adjusted_category")
 
     try:
         risk_tier(entry["vital_base_risk"])
@@ -390,6 +397,18 @@ def _number(value: Any, where: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ConfigError(f"{where} must be a number")
     return float(value)
+
+
+def _risk_category(value: Any, where: str) -> RiskCategory:
+    if value == "moderate":
+        return RiskCategory.MODERATE
+    try:
+        return RiskCategory(value)
+    except ValueError:
+        # VITAL's own words, with "medium" as another spelling of "moderate".
+        raise ConfigError(
+            f"{where} must be one of: low, moderate (or medium), high, very_high, critical"
+        ) from None
 
 
 def _choice(value: Any, enum: type, where: str) -> Any:

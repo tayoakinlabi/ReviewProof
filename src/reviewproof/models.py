@@ -84,11 +84,15 @@ class FeedbackTiming(str, Enum):
 
 
 class RiskCategory(str, Enum):
-    """VITAL risk-adjusted category."""
+    """VITAL risk-adjusted category (ADR-007)."""
 
     LOW = "low"
     MEDIUM = "medium"
+    #: VITAL's word for ``MEDIUM``, which is what is stored.
+    MODERATE = "medium"
     HIGH = "high"
+    VERY_HIGH = "very_high"
+    CRITICAL = "critical"
 
 
 def new_token() -> str:

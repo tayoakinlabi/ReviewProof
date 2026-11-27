@@ -9,7 +9,7 @@ passed: for that, make a record from a test run, as the
 Nor does a tag show that the tests are enough for your use. The deployment duties have
 no tests here: they are yours to test.
 
-52 requirements, 198 tagged tests. A test may cover several requirements, and may run with several inputs.
+52 requirements, 204 tagged tests. A test may cover several requirements, and may run with several inputs.
 
 ## REQ-001
 
@@ -473,6 +473,8 @@ Make no network connection except to send alerts, to the routes in its settings,
 Refuse invalid settings and say what is wrong, including a reserved target prefix too weak to protect.
 
 - [`tests/test_config.py`](../tests/test_config.py)
+  - `test_a_base_risk_that_is_not_on_vitals_ladder_is_refused`
+  - `test_a_category_that_is_not_vitals_is_refused_and_the_choices_listed`
   - `test_invalid_values_are_rejected`
   - `test_missing_keys_are_rejected`
   - `test_weak_reserved_prefix_is_rejected`
@@ -494,8 +496,12 @@ Change a database's schema only when asked to upgrade it, copy the log exactly o
   - `test_a_newer_schema_is_refused`
 - [`tests/test_upgrade.py`](../tests/test_upgrade.py)
   - `test_a_copy_that_is_not_exact_undoes_the_upgrade`
+  - `test_a_failure_in_version_3_undoes_version_2_as_well`
+  - `test_a_rating_that_is_not_copied_exactly_undoes_version_3`
+  - `test_a_version_2_database_is_not_upgraded_unasked`
   - `test_nothing_upgrades_a_database_unasked`
   - `test_the_log_is_unchanged_by_the_upgrade`
+  - `test_version_3_keeps_every_row_and_stored_rating`
 
 ## REQ-047
 

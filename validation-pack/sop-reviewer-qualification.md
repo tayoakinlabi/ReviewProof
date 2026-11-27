@@ -45,8 +45,8 @@ DEP-008 and DEP-012, in the [requirements](requirements.md#deployment-duties). R
 | A5 and A6 | Before first review, and after each change of the AI system's version | **[FILL]** |
 | A7 and above | As above, and every **[FILL]** | **[FILL]** |
 
-A High, Very High or Critical adjusted category moves a queue up one row (*proposed*). The
-settings have no Very High or Critical, and refuse half steps: see
+A half step of base risk, such as 5.5, counts as the next step up. A High adjusted category
+moves a queue up one row, and Very High or Critical puts it in the last row (*proposed*). See
 [how to record your VITAL rating](vital-mapping.md#recording-your-vital-risk-rating).
 
 **ReviewProof reports status and blocks no one** (DEP-014). **[FILL: who may review without a

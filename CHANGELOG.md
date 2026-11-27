@@ -34,6 +34,10 @@ These concern reporting code that no release contains yet.
   planted error, and who met a given one.
 - In the validation pack, a 21 CFR Part 11 control table and a mapping to the VITAL
   framework's evidence categories. Both say what ReviewProof does not provide.
+- Settings take all of VITAL's risk ratings: half steps such as `A5.5`, and the adjusted
+  categories `moderate` (the same as `medium`), `very_high` and `critical`. Very High and
+  Critical take the top default planted share. No rating from A1 to A10 that 0.1.0 accepted
+  gets a different share. See [ADR-007](docs/adr/0007-vital-ratings.md).
 - Settings: optional `reporting` and `alerts` sections, and per-queue `thresholds`.
 - Qualification sessions: planted errors and correct items, a pass mark fixed in advance,
   and each reviewer's status for the current version of the AI system (`rp qualify`).
@@ -58,12 +62,18 @@ These concern reporting code that no release contains yet.
 
 ### Change impact
 
-**This release needs database schema version 2.** It refuses to write to databases made by
-0.1.0 until you run `rp init`, so installing it changes nothing in your records by itself.
-**Back up both databases first.** The upgrade rebuilds the log table: stored values and
-hashes do not change, and heads exported by 0.1.0 still match. After it, 0.1.0 cannot open
-the databases. A validated user should run `rp verify` with a previously exported head
-before and after, and retest the gate, guard and log.
+**This release needs new database schemas: version 3 of `oversight.db` and version 2 of
+`planted.db`.** It refuses to write to databases made by 0.1.0 until you run `rp init`, so
+installing it changes nothing in your records by itself. **Back up both databases first.** If
+you have upgraded a database with this repository's source before, you may need to run
+`rp init` again. The upgrade rebuilds the log table and replaces the column that holds a
+queue's risk category, keeping the old one unused. Stored values and hashes do not change, and
+heads exported by 0.1.0 still match. After it, 0.1.0 cannot open the databases. A validated
+user should run `rp verify` with a previously exported head before and after, retest the gate,
+guard and log, and check each queue's planted share.
+
+**A `vital_base_risk` above `A10`, such as `A11` or `A55`, is now refused.** 0.1.0 accepted
+it and gave it the top share. Correct such settings before installing.
 
 The new figures, reports and qualification results need testing against their intended
 use. See [ADR-004](docs/adr/0004-metrics-and-reports.md) and

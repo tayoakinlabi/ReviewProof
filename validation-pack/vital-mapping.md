@@ -62,17 +62,30 @@ the agent performs.
 
 ## Recording your VITAL risk rating
 
-ReviewProof's settings do not follow all of VITAL's scales. They use the rating only to choose a
-default planted-error share. **Record your true rating in your risk assessment.**
+The settings accept every rating on VITAL's two scales
+([ADR-007](../docs/adr/0007-vital-ratings.md)). ReviewProof uses a rating only to choose the
+default planted share, which `planted_rate` replaces. **Keep the rating and the reasons for it
+in your risk assessment:** no report or log entry shows it, and verification does not cover the
+copy in the database.
 
 | Your VITAL rating | What to set | Note |
 | --- | --- | --- |
-| Base risk, a whole step from A1 to A10 | `vital_base_risk` to the same step | |
-| Base risk, a half step such as 5.5 | The next whole step up | Half steps are refused |
+| Base risk, from A1 to A10 | `vital_base_risk`, the same | |
+| Base risk, a half step such as 5.5 | `vital_base_risk: A5.5` | Takes the next whole step's share |
 | Adjusted category Low | `vital_adjusted_category: low` | |
-| Moderate | `vital_adjusted_category: medium` | The setting's word for it is `medium` |
-| High | `vital_adjusted_category: high` | Raises the default share by one step |
-| Very High or Critical | `vital_adjusted_category: high`, and decide `planted_rate` yourself | **There is no setting for either**, and reports and records cannot tell them from High. The paper treats Critical as outside its routine validation route |
+| Moderate | `vital_adjusted_category: moderate` | Stored as `medium` |
+| | `vital_adjusted_category: medium` | The same, as in earlier settings |
+| High | `vital_adjusted_category: high` | |
+| Very High | `vital_adjusted_category: very_high` | |
+| Critical | `vital_adjusted_category: critical` | Recording it does not make ReviewProof suitable. The paper treats Critical as outside its routine validation route |
+
+The default planted share, which is ReviewProof's authors' untried proposal and not VITAL's:
+
+| Base risk | No category, Low or Moderate | High | Very High or Critical |
+| --- | --- | --- | --- |
+| A1 to A4 | 1% | 2% | 3% |
+| A4.5 to A6 | 2% | 3% | 3% |
+| A6.5 to A10 | 3% | 3% | 3% |
 
 ## Your conclusion
 

@@ -12,7 +12,7 @@ import pytest
 from deploy import EXAMPLES, item, submit_until_pair
 from helpers import triggers_removed
 
-from reviewproof.config import ConfigError, risk_tier
+from reviewproof.config import TIER_RATES, ConfigError, risk_tier
 from reviewproof.models import RiskCategory
 from reviewproof.store import open_oversight_db, open_planted_db
 
@@ -176,9 +176,32 @@ def test_the_ten_categories_are_mapped_and_the_summary_counts_them_right():
 def test_the_rating_advice_matches_what_the_settings_accept():
     advice = section(VITAL, "Recording your VITAL risk rating")
     named = set(re.findall(r"`vital_adjusted_category: (\w+)`", advice))
-    assert named == {category.value for category in RiskCategory}
+    assert named == {category.value for category in RiskCategory} | {"moderate"}
+    for half_step in re.findall(r"`vital_base_risk: (A[\d.]+)`", advice):
+        risk_tier(half_step)
     for step in range(1, 11):
         risk_tier(f"A{step}")
     with pytest.raises(ConfigError):
-        risk_tier("A5.5")  # "Half steps are refused"
-    assert risk_tier("A4", RiskCategory.HIGH) == risk_tier("A4") + 1
+        risk_tier("A11")  # "from A1 to A10"
+
+
+def test_the_share_table_in_the_mapping_is_what_the_software_does():
+    advice = section(VITAL, "Recording your VITAL risk rating")
+    rows = table_rows(advice, r"A[\d.]+ to A[\d.]+")
+    assert [row[0] for row in rows] == ["A1 to A4", "A4.5 to A6", "A6.5 to A10"]
+    columns = [
+        (None, RiskCategory.LOW, RiskCategory.MODERATE),
+        (RiskCategory.HIGH,),
+        (RiskCategory.VERY_HIGH, RiskCategory.CRITICAL),
+    ]
+    covered = []
+    for row in rows:
+        first, last = (float(end[1:]) for end in row[0].split(" to "))
+        for twice in range(int(first * 2), int(last * 2) + 1):
+            base = f"A{twice / 2:g}"
+            covered.append(base)
+            for categories, shown in zip(columns, row[1:], strict=True):
+                for category in categories:
+                    share = TIER_RATES[risk_tier(base, category)]
+                    assert f"{share:.0%}" == shown, (base, category)
+    assert len(covered) == 19
