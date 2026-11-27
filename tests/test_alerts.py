@@ -69,6 +69,7 @@ def message(*checks):
     return alerts.compose("deviation-triage", list(checks or [BREACH]), NOW)
 
 
+@pytest.mark.req("REQ-040")
 def test_the_message_is_about_the_queue():
     result = message()
     assert result.subject == ("ReviewProof: 1 item needs attention in queue deviation-triage")
@@ -149,6 +150,7 @@ def smtp():
 SMTP = Smtp(host="mail.example.com", sender="rp@example.com")
 
 
+@pytest.mark.req("REQ-040")
 def test_email_to_the_qa_lead(smtp):
     route = AlertRoute(emails=("qa@example.com", "qa2@example.com"), smtp=SMTP)
     assert alerts.send(message(), route, smtp) == ["email to 2 address(es)"]
@@ -188,6 +190,7 @@ def test_every_route_is_tried_even_if_one_fails(serve):
     assert len(server.requests) == 1
 
 
+@pytest.mark.req("REQ-043")
 def test_without_a_route_nothing_is_sent():
     with pytest.raises(alerts.DeliveryError, match="no alert route"):
         alerts.send(message(), AlertRoute())

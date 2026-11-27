@@ -14,6 +14,10 @@ There are two lists:
 - **Deployment duties (`DEP-`)** are what your application, infrastructure and procedures must
   do. ReviewProof cannot do or check them. **Its own tests say nothing about them.**
 
+The [traceability matrix](trace-matrix.md) shows which automated tests are tagged with each
+requirement, and the [test scripts](test-scripts.md) say how to run them and how to test the
+duties.
+
 The terms used here: an **item** is one AI proposal under review. A **planted error** is an item
 with a known defect, written by your staff. The **guard** is the check that every write goes
 through. The **restricted database** is `planted.db`.

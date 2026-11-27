@@ -88,6 +88,7 @@ def test_the_page_stands_alone(golden):
     assert not re.search(r"(src|href)=|url\(|@import", page)
 
 
+@pytest.mark.req("REQ-040")
 def test_no_reviewer_appears_unless_individual_results_are_asked_for(golden):
     ids = {r.reviewer for r in load(golden.db, golden.planted_db).records if r.reviewer}
     assert ids == {"A", "B"}
@@ -98,6 +99,7 @@ def test_no_reviewer_appears_unless_individual_results_are_asked_for(golden):
     assert not any(row["scope_type"] == "reviewer" for row in rows(report))
 
 
+@pytest.mark.req("REQ-040")
 def test_individual_results_need_ten_planted_errors(golden):
     report = make(golden, individuals=True)
     first, second = report.queues[0].reviewers
@@ -124,6 +126,7 @@ def test_individual_results_need_ten_planted_errors(golden):
     assert (hidden["value"], hidden["successes"], hidden["total"]) == ("", "", "4")
 
 
+@pytest.mark.req("REQ-041")
 def test_nothing_in_a_report_names_an_item_or_a_planted_error(golden):
     report = make(golden, individuals=True)
     everything = html.render(report) + tables.render(report)
@@ -132,6 +135,7 @@ def test_nothing_in_a_report_names_an_item_or_a_planted_error(golden):
         assert item_id not in everything
 
 
+@pytest.mark.req("REQ-040")
 def test_one_reviewers_group_score_is_withheld_like_an_individual_one(golden):
     since = datetime(2026, 3, 8, tzinfo=timezone.utc)  # only B worked after this
     report = make(golden, since=since)
@@ -225,6 +229,7 @@ def copy(golden, tmp_path):
     )
 
 
+@pytest.mark.req("REQ-035")
 def test_a_tampered_log_gives_no_scores(copy):
     with closing(open_oversight_db(copy.db)) as db, triggers_removed(db):
         db.execute("UPDATE events SET decision = 'reject' WHERE type = 'decided'")
@@ -236,6 +241,7 @@ def test_a_tampered_log_gives_no_scores(copy):
     assert "%" not in text and "Planted errors caught" not in text
 
 
+@pytest.mark.req("REQ-035")
 def test_a_relabelled_item_gives_no_scores(copy):
     with (
         closing(open_planted_db(copy.planted_db)) as db,

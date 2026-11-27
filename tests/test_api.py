@@ -63,6 +63,7 @@ def test_real_payloads_come_back_unchanged(deployment):
     assert list(ticket.payload) == SCHEMA_ORDER
 
 
+@pytest.mark.req("REQ-010")
 def test_the_target_id_is_kept_in_the_registry_only(deployment):
     deployment.open().submit(item(3))
     [row] = deployment.query("SELECT target_id, kind FROM item_registry", planted=True)
@@ -71,6 +72,7 @@ def test_the_target_id_is_kept_in_the_registry_only(deployment):
     assert "QMS-REC-0003" not in json.dumps(dump)
 
 
+@pytest.mark.req("REQ-023")
 def test_no_item_content_or_token_is_stored(deployment):
     [ticket] = deployment.open().submit(item(0))
     with closing(sqlite3.connect(deployment.db)) as db:
@@ -83,6 +85,7 @@ def test_no_item_content_or_token_is_stored(deployment):
 # ----------------------------------------------------------------- no giveaways
 
 
+@pytest.mark.req("REQ-011")
 def test_field_order_does_not_show_which_item_is_planted(deployment, ov):
     # The host sends fields in its own order; planted items are stored with sorted keys.
     for number in range(20):
@@ -111,6 +114,7 @@ def test_nested_and_unlisted_fields_are_ordered_by_name(deployment, tmp_path):
     )
 
 
+@pytest.mark.req("REQ-010")
 def test_real_and_planted_tickets_have_the_same_shape(ov):
     real, planted = submit_until_pair(ov)
     assert type(real) is type(planted) is Ticket
@@ -122,6 +126,7 @@ def test_real_and_planted_tickets_have_the_same_shape(ov):
     assert repr(real) == repr(planted)
 
 
+@pytest.mark.req("REQ-012")
 def test_real_and_planted_rows_and_events_have_the_same_shape(deployment, ov):
     submit_until_pair(ov)
     kinds = deployment.kinds()
@@ -165,6 +170,7 @@ def test_hashes_do_not_repeat_when_a_planted_error_is_reused(make):
     assert len(seen) == len(set(seen))
 
 
+@pytest.mark.req("REQ-011")
 def test_neither_order_gives_the_planted_item_away(make):
     deployment = make()
     ov = deployment.open(seed=5)
@@ -190,6 +196,7 @@ def test_neither_order_gives_the_planted_item_away(make):
         assert min(counts.values()) > 0.3 * pairs
 
 
+@pytest.mark.req("REQ-011")
 def test_both_kinds_are_refused_for_the_same_reasons(ov):
     tickets = submit_until_pair(ov)
     messages = []
@@ -215,6 +222,7 @@ def test_both_kinds_are_refused_for_the_same_reasons(ov):
     assert messages[0] == messages[1]
 
 
+@pytest.mark.req("REQ-012")
 def test_nothing_in_the_host_logs_names_a_planted_error(ov, caplog):
     caplog.set_level(logging.DEBUG)
     real, planted = submit_until_pair(ov)
@@ -237,6 +245,7 @@ def test_no_decision_before_it_is_shown(ticket):
         ov.decided(token, "r-1", "approve")
 
 
+@pytest.mark.req("REQ-020")
 def test_the_decider_must_have_been_shown_it(ticket):
     ov, token = ticket
     ov.shown(token, "r-1")
@@ -244,6 +253,7 @@ def test_the_decider_must_have_been_shown_it(ticket):
         ov.decided(token, "r-2", "approve")
 
 
+@pytest.mark.req("REQ-022")
 def test_showing_twice_and_to_two_people_is_recorded(ticket, deployment):
     ov, token = ticket
     for reviewer in ("r-1", "r-1", "r-2"):
@@ -256,6 +266,7 @@ def test_showing_twice_and_to_two_people_is_recorded(ticket, deployment):
     assert sorted(r["reviewer_id"] for r in reviewers) == ["r-1", "r-2"]
 
 
+@pytest.mark.req("REQ-020")
 @pytest.mark.parametrize("second", ["approve", "reject"])
 def test_only_one_decision(ticket, second):
     ov, token = ticket
@@ -299,6 +310,7 @@ def test_a_token_belongs_to_its_queue(deployment):
         other.shown(ticket.token, "r-1")
 
 
+@pytest.mark.req("REQ-020")
 @pytest.mark.parametrize("reviewer", ["", " ", " r-1", None, 7])
 def test_a_reviewer_needs_a_clean_id(ticket, reviewer):
     ov, token = ticket
@@ -324,6 +336,7 @@ def last_event_data(deployment):
     return json.loads(rows[0]["data"])
 
 
+@pytest.mark.req("REQ-021")
 @pytest.mark.parametrize(
     ("change", "expected"),
     [
@@ -339,6 +352,7 @@ def test_reviewproof_works_out_what_changed(ticket, deployment, change, expected
     assert last_event_data(deployment)["edited_fields"] == expected
 
 
+@pytest.mark.req("REQ-021")
 def test_a_removed_field_counts_as_changed(ticket, deployment):
     ov, token = ticket
     final = {k: v for k, v in ITEMS[0].items() if k != "root_cause"}
@@ -356,6 +370,7 @@ def test_the_final_payload_hash_uses_the_items_salt(ticket, deployment):
     )
 
 
+@pytest.mark.req("REQ-021")
 def test_reordering_and_number_spelling_are_not_edits(deployment):
     ov = deployment.open()
     payload = {**ITEMS[0], "root_cause": "x", "extra": {"dose": 10.0, "list": [2.0]}}
@@ -407,6 +422,7 @@ def test_an_edit_that_misses_the_defect_does_not_list_it(make):
 # ----------------------------------------------------------------- submit checks
 
 
+@pytest.mark.req("REQ-019")
 @pytest.mark.parametrize("target", ["rp-reserved-abc", " RP-RESERVED-1"])
 def test_a_reserved_target_id_is_refused(deployment, target):
     with pytest.raises(OversightError, match="reserved"):
@@ -414,6 +430,7 @@ def test_a_reserved_target_id_is_refused(deployment, target):
     assert deployment.query("SELECT * FROM items") == []
 
 
+@pytest.mark.req("REQ-019")
 @pytest.mark.parametrize("extra", [{"record": "REC-9"}, {"nested": [{"id": "REC-9"}]}])
 def test_the_payload_must_not_hold_the_target_id(deployment, extra):
     with pytest.raises(OversightError, match="contains the target_id"):
@@ -434,6 +451,7 @@ def test_the_callers_payload_is_not_shared(deployment):
     assert payload == ITEMS[0]
 
 
+@pytest.mark.req("REQ-009")
 def test_real_work_that_breaks_the_schema_is_accepted_with_a_warning(deployment, caplog):
     ov = deployment.open()
     bad = {**ITEMS[0], "classification": "SENSITIVE"}
@@ -444,6 +462,7 @@ def test_real_work_that_breaks_the_schema_is_accepted_with_a_warning(deployment,
     assert "SENSITIVE" not in record.getMessage()
 
 
+@pytest.mark.req("REQ-009")
 def test_an_unusable_schema_stops_planting_but_not_real_work(deployment, ov, caplog):
     (deployment.folder / "item.schema.json").write_text('{"oneOf": []}', encoding="utf-8")
     for number in range(10):
@@ -452,6 +471,7 @@ def test_an_unusable_schema_stops_planting_but_not_real_work(deployment, ov, cap
     assert list(deployment.kinds().values()) == ["real"] * 10
 
 
+@pytest.mark.req("REQ-009")
 def test_a_damaged_library_does_not_hold_up_real_work(deployment, ov, caplog):
     with (
         closing(open_planted_db(deployment.planted_db)) as db,
@@ -470,6 +490,7 @@ def test_a_damaged_library_does_not_hold_up_real_work(deployment, ov, caplog):
 # ----------------------------------------------------------------- storage failures
 
 
+@pytest.mark.req("REQ-009")
 def test_a_lost_registry_stops_submission_and_leaves_no_item(deployment):
     ov = deployment.open()
     with closing(open_planted_db(deployment.planted_db)) as db:
@@ -480,6 +501,7 @@ def test_a_lost_registry_stops_submission_and_leaves_no_item(deployment):
     assert deployment.query("SELECT * FROM events WHERE type = 'submitted'") == []
 
 
+@pytest.mark.req("REQ-009")
 def test_a_locked_log_does_not_use_up_planted_errors(deployment, ov):
     ov._db.execute("PRAGMA busy_timeout = 10")
     with closing(open_oversight_db(deployment.db)) as other:
@@ -529,6 +551,7 @@ def test_an_edit_needs_the_registry_and_the_submission_record(ticket, deployment
 # ----------------------------------------------------------------- setting up
 
 
+@pytest.mark.req("REQ-045")
 def test_opening_never_creates_the_databases(make):
     deployment = make()
     deployment.planted_db.unlink()
@@ -537,6 +560,7 @@ def test_opening_never_creates_the_databases(make):
     assert not deployment.planted_db.exists()
 
 
+@pytest.mark.req("REQ-045")
 def test_a_missing_log_is_not_replaced(make):
     deployment = make()
     deployment.db.unlink()
@@ -545,6 +569,7 @@ def test_a_missing_log_is_not_replaced(make):
     assert not deployment.db.exists()
 
 
+@pytest.mark.req("REQ-045")
 def test_initialise_is_repeatable_but_never_replaces_one_lost_file(make):
     deployment = make()
     deployment.open().submit(item(0))

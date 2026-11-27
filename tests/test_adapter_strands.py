@@ -222,6 +222,7 @@ class _Outside(BaseException):
     pass
 
 
+@pytest.mark.req("REQ-051")
 @pytest.mark.parametrize("executor", [ConcurrentToolExecutor, SequentialToolExecutor])
 @pytest.mark.parametrize(
     "error",

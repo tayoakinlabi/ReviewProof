@@ -71,6 +71,7 @@ def available_ids(library):
 # ----------------------------------------------------------------- import
 
 
+@pytest.mark.req("REQ-001")
 def test_import_stores_an_unapproved_planted_error(library, config):
     planted = library.import_data(planted_input(notes="note"))
     assert planted.planted_error_id == "PE-0001"
@@ -86,6 +87,7 @@ def test_import_stores_an_unapproved_planted_error(library, config):
     assert library.all("another") == []
 
 
+@pytest.mark.req("REQ-001")
 @pytest.mark.parametrize("suffix", [".yaml", ".yml", ".json"])
 def test_import_from_a_file(library, tmp_path, suffix):
     path = tmp_path / f"pe{suffix}"
@@ -101,6 +103,7 @@ def test_a_file_saved_with_a_byte_order_mark_imports(library, tmp_path):
     library.import_file(path)
 
 
+@pytest.mark.req("REQ-002")
 def test_reserved_target_ids_are_unique(library):
     first = library.import_data(planted_input())
     second_payload = {**planted_input()["payload"], "deviation_id": "DEV-2026-0191"}
@@ -149,6 +152,7 @@ def damaged(**changes):
     return data
 
 
+@pytest.mark.req("REQ-001")
 @pytest.mark.parametrize(
     ("data", "message"),
     [
@@ -188,6 +192,7 @@ def test_bad_input_is_refused_with_a_clear_message(library, data, message):
     assert library.all() == []
 
 
+@pytest.mark.req("REQ-001")
 def test_every_schema_problem_is_reported_at_once(library):
     with pytest.raises(PlantedImportError) as error:
         library.import_data(damaged(classification="huge", capa_required="yes"))
@@ -238,6 +243,7 @@ def test_a_self_referencing_payload_is_refused(library, tmp_path):
         library.import_file(path)
 
 
+@pytest.mark.req("REQ-002")
 def test_an_id_cannot_be_reused_to_change_content(library):
     library.import_data(planted_input())
     changed = planted_input()
@@ -246,6 +252,7 @@ def test_an_id_cannot_be_reused_to_change_content(library):
         library.import_data(changed)
 
 
+@pytest.mark.req("REQ-002")
 def test_the_same_payload_cannot_be_imported_twice(library):
     library.import_data(planted_input())
     with pytest.raises(PlantedImportError, match="same payload as PE-0001"):
@@ -269,6 +276,7 @@ def imported(library):
     return library
 
 
+@pytest.mark.req("REQ-003")
 def test_a_gxp_queue_needs_two_approvers(imported):
     first = imported.approve("PE-0001", "qa-1")
     assert imported.status(first) is Status.AWAITING_SECOND_APPROVAL
@@ -281,6 +289,7 @@ def test_a_gxp_queue_needs_two_approvers(imported):
     assert available_ids(imported) == ["PE-0001"]
 
 
+@pytest.mark.req("REQ-003")
 def test_a_non_gxp_queue_needs_one_approver(imported, registry_db, config):
     library = with_gxp(imported, registry_db, config, gxp=False)
     assert available_ids(library) == []
@@ -297,12 +306,14 @@ def test_making_a_queue_gxp_holds_back_single_approvals(imported, registry_db, c
     assert available_ids(imported) == ["PE-0001"]
 
 
+@pytest.mark.req("REQ-003")
 @pytest.mark.parametrize("name", ["author-1", " AUTHOR-1 ", "Author​-1", "ａuthor-1"])
 def test_authors_cannot_approve_their_own(imported, name):
     with pytest.raises(ApprovalError, match="their own"):
         imported.approve("PE-0001", name)
 
 
+@pytest.mark.req("REQ-003")
 @pytest.mark.parametrize("again", ["qa-é", " QA-É ", "qa-é", "QA-É​"])
 def test_one_person_cannot_approve_twice(imported, again):
     imported.approve("PE-0001", "qa-é")
@@ -342,6 +353,7 @@ def test_forged_approvals_in_the_database_do_not_count(imported, registry_db):
         imported.approve("PE-0001", "qa-3")
 
 
+@pytest.mark.req("REQ-004")
 def test_retirement_is_permanent_and_attributed(imported):
     imported.approve("PE-0001", "qa-1")
     imported.approve("PE-0001", "qa-2")
@@ -370,6 +382,7 @@ def approved(imported):
     return imported
 
 
+@pytest.mark.req("REQ-007")
 def test_a_schema_change_holds_back_planted_errors_that_no_longer_fit(approved, folder):
     assert approved.stale(QUEUE) == {}
     schema = json.loads((folder / "item.schema.json").read_text(encoding="utf-8"))

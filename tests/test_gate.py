@@ -43,6 +43,7 @@ def planted_share(released):
     return sum(released) / (len(released) + sum(released))
 
 
+@pytest.mark.req("REQ-006")
 @pytest.mark.parametrize("rate", [0.01, 0.02, 0.03, 0.2])
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_planted_share_is_within_a_fifth_of_a_point(rate, seed):
@@ -86,6 +87,7 @@ def periodicity(sequence, longest_lag=200):
     return worst
 
 
+@pytest.mark.req("REQ-006")
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_there_is_no_pattern(seed):
     released = simulate(0.2, 200_000, seed)
@@ -120,6 +122,7 @@ def test_the_pattern_tests_would_catch_delayed_release():
     assert periodicity(released) > 10
 
 
+@pytest.mark.req("REQ-006")
 def test_the_due_probability_accounts_for_the_planted_items_themselves():
     assert due_probability(0.5) == 1
     assert due_probability(0.02) == pytest.approx(1 / 49)
@@ -200,6 +203,7 @@ def next_injection(gate, reviewer=None, tries=40):
     return None
 
 
+@pytest.mark.req("REQ-007")
 def test_only_approved_planted_errors_are_used(gate, library, event_log):
     add(library, 1, approve=False)
     add(library, 2)
@@ -250,6 +254,7 @@ def test_the_injection_repr_reveals_nothing(gate, library):
         assert secret not in text
 
 
+@pytest.mark.req("REQ-007")
 def test_no_second_copy_while_one_awaits_a_decision(gate, library, event_log):
     add(library, 1)
     first = next_injection(gate)
@@ -269,6 +274,7 @@ def test_being_shown_is_not_enough_to_free_a_copy(gate, library, event_log):
     assert next_injection(gate) is None
 
 
+@pytest.mark.req("REQ-007")
 def test_least_used_go_first(gate, library, event_log):
     for number in range(4):
         add(library, number)
@@ -283,6 +289,7 @@ def test_least_used_go_first(gate, library, event_log):
     assert len({tuple(order[s : s + 4]) for s in (0, 4, 8)}) > 1  # in varying order
 
 
+@pytest.mark.req("REQ-007")
 def test_a_named_reviewer_does_not_get_the_same_one_twice(gate, library, event_log):
     for number in range(3):
         add(library, number)
@@ -296,6 +303,7 @@ def test_a_named_reviewer_does_not_get_the_same_one_twice(gate, library, event_l
     assert next_injection(gate, reviewer="r-2") is not None
 
 
+@pytest.mark.req("REQ-007")
 def test_being_assigned_counts_even_if_someone_else_decided(gate, library, event_log):
     add(library, 1)
     first = next_injection(gate, reviewer="r-1")
@@ -305,6 +313,7 @@ def test_being_assigned_counts_even_if_someone_else_decided(gate, library, event
     assert next_injection(gate, reviewer="r-2") is None
 
 
+@pytest.mark.req("REQ-007")
 @pytest.mark.parametrize("shown", [True, False])
 def test_having_met_it_counts_without_an_assignment(gate, library, event_log, shown):
     add(library, 1)
@@ -355,6 +364,7 @@ def test_state_carries_over_to_a_new_gate(registry_db, oversight_db, config, lib
     assert later.on_submission(QUEUE) is None  # the first copy is still waiting
 
 
+@pytest.mark.req("REQ-008")
 def test_each_shortfall_is_recorded_and_nothing_is_saved_up(gate, library, event_log):
     for _ in range(25):
         assert gate.on_submission(QUEUE) is None
@@ -402,6 +412,7 @@ def test_status_reports_stale_and_dropped(gate, library, registry_db, oversight_
     assert status.shortfalls > 0
 
 
+@pytest.mark.req("REQ-006")
 def test_the_default_random_source_is_unpredictable(registry_db, oversight_db, config):
     assert isinstance(Gate(registry_db, oversight_db, config)._rng, secrets.SystemRandom)
 

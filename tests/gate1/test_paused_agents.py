@@ -93,6 +93,7 @@ class AlwaysDue(random.Random):
         return 0.0
 
 
+@pytest.mark.req("REQ-047")
 def test_repeating_a_key_returns_the_same_tickets_and_draws_once(ov, deployment):
     rng = AlwaysDue()
     ov._rng = ov._gate._rng = rng
@@ -139,6 +140,7 @@ def test_repeating_after_decisions_and_execution_changes_nothing(ov, deployment,
     assert log_size(deployment) == events
 
 
+@pytest.mark.req("REQ-047")
 @pytest.mark.parametrize("change", ["payload", "target", "reviewer", "reviewer-added"])
 def test_a_key_cannot_be_used_for_anything_else(ov, deployment, change):
     first = None if change == "reviewer-added" else "r-1"
@@ -287,6 +289,7 @@ def test_a_rubber_stamping_reviewer_and_an_eager_agent(make, writes):
     assert deployment.verify().ok
 
 
+@pytest.mark.req("REQ-048")
 def test_approving_only_the_planted_item_lets_nothing_run(ov, writes):
     key, submitted, _, planted = keyed_pair(ov)
     decide(ov, planted)
@@ -297,6 +300,7 @@ def test_approving_only_the_planted_item_lets_nothing_run(ov, writes):
     assert writes.done == []
 
 
+@pytest.mark.req("REQ-048")
 def test_a_planted_payload_cannot_run_under_the_real_approval(ov, writes):
     key, _, real, planted = keyed_pair(ov)
     decide(ov, real)
@@ -305,6 +309,7 @@ def test_a_planted_payload_cannot_run_under_the_real_approval(ov, writes):
     assert writes.done == []
 
 
+@pytest.mark.req("REQ-048")
 @pytest.mark.parametrize("real_decision", ["reject", None])
 def test_a_resume_without_approval_runs_nothing(ov, writes, real_decision):
     key, submitted, real, _ = keyed_pair(ov)
@@ -359,6 +364,7 @@ def test_concurrent_resumes_write_once(ov, deployment):
 # ----------------------------------------------------------------- settle
 
 
+@pytest.mark.req("REQ-017")
 @pytest.mark.parametrize("which", ["real", "planted"])
 def test_settle_refuses_both_kinds_for_the_same_reasons(ov, deployment, which):
     _, _, real, planted = keyed_pair(ov)

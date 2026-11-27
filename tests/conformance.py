@@ -157,12 +157,27 @@ class AdapterConformance:
         assert world.written == []
         assert len(world.queue) == 2
 
+    @pytest.mark.req("REQ-049")
     def test_nothing_planted_and_no_token_is_in_the_agents_state(self, world):
         world.agent.start()
         state = world.agent.saved_state()
         real, planted = world.tickets()
         assert PROPOSAL["deviation_id"] in state  # the search does see the content
         assert world.queue[planted]["deviation_id"] not in state
+        assert "rp-reserved-" not in state
+        assert real not in state and planted not in state
+
+    @pytest.mark.req("REQ-049")
+    def test_nothing_planted_is_in_the_agents_state_after_it_resumes_either(self, world):
+        world.agent.start()
+        real, planted = world.tickets()
+        content = world.queue[planted]["deviation_id"]
+        world.decide(planted)
+        world.decide(real)
+        world.agent.resume()
+        state = world.agent.saved_state() + "".join(world.agent.replies())
+        assert PROPOSAL["deviation_id"] in state  # the search does see the content
+        assert content not in state
         assert "rp-reserved-" not in state
         assert real not in state and planted not in state
 
@@ -187,12 +202,14 @@ class AdapterConformance:
         assert world.written == []
         assert world.agent.model_calls() == calls
 
+    @pytest.mark.req("REQ-050")
     def test_a_forged_resume_writes_nothing(self, world):
         world.agent.start()
         with pytest.raises(ReviewPending):
             world.agent.force_resume()
         assert world.written == []
 
+    @pytest.mark.req("REQ-050")
     def test_running_the_tool_without_a_pause_writes_nothing(self, world):
         with pytest.raises(OversightError, match="nothing in this queue"):
             world.agent.run_without_pause()
@@ -238,6 +255,7 @@ class AdapterConformance:
         assert world.agent.model_calls() == calls
         assert world.agent.replies() == []
 
+    @pytest.mark.req("REQ-050")
     def test_restoring_a_pause_and_resuming_again_writes_once(self, world):
         world.agent.start()
         real, _ = world.tickets()
@@ -259,6 +277,7 @@ class AdapterConformance:
         assert set(world.queue) == tickets
         assert world.events() == events
 
+    @pytest.mark.req("REQ-052")
     def test_two_calls_proposed_at_once_each_run_once(self, make, offline):
         """A library that runs a step again must not reach an earlier call's write again."""
         world = World(make, self.harness, (PROPOSAL, SECOND))
@@ -276,6 +295,7 @@ class AdapterConformance:
         assert len(world.agent.replies()) == 2
         assert world.deployment.verify().ok
 
+    @pytest.mark.req("REQ-052")
     def test_two_calls_decided_before_one_resume_each_run_once(self, make, offline):
         world = World(make, self.harness, (PROPOSAL, SECOND))
         world.agent.start()
@@ -287,6 +307,7 @@ class AdapterConformance:
         assert len(replies) == 2
         assert any(world.agent.rejection_reply in reply for reply in replies)
 
+    @pytest.mark.req("REQ-051")
     @pytest.mark.parametrize("error", [ConnectionError("down"), ValueError("bad record")])
     def test_a_failed_write_stops_the_run(self, world, error):
         world.agent.start()

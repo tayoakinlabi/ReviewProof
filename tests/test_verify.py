@@ -40,6 +40,7 @@ def test_a_clean_log_verifies(log, oversight_db):
     assert not result.registry_checked
 
 
+@pytest.mark.req("REQ-026")
 @pytest.mark.parametrize(
     "change",
     [
@@ -97,6 +98,7 @@ def test_an_edit_with_a_recomputed_hash_breaks_the_next_link(log, oversight_db):
     assert "does not follow" in result.chain_error
 
 
+@pytest.mark.req("REQ-026")
 @pytest.mark.parametrize("event_id", [1, 3])
 def test_a_removed_event_is_reported(log, oversight_db, event_id):
     tamper(oversight_db, "DELETE FROM events WHERE event_id = ?", (event_id,))
@@ -105,6 +107,7 @@ def test_a_removed_event_is_reported(log, oversight_db, event_id):
     assert "missing" in result.chain_error
 
 
+@pytest.mark.req("REQ-026")
 def test_swapped_events_are_reported(log, oversight_db):
     for old, new in [(2, 100), (3, 2), (100, 3)]:
         tamper(oversight_db, "UPDATE events SET event_id = ? WHERE event_id = ?", (new, old))
@@ -114,6 +117,7 @@ def test_swapped_events_are_reported(log, oversight_db):
 # ----------------------------------------------------------------- the exported head
 
 
+@pytest.mark.req("REQ-026")
 def test_removing_the_latest_events_needs_the_exported_head(log, oversight_db):
     exported = log.head()
     tamper(oversight_db, "DELETE FROM events WHERE event_id > 3")
@@ -123,6 +127,7 @@ def test_removing_the_latest_events_needs_the_exported_head(log, oversight_db):
     assert "missing or changed" in result.anchor_error
 
 
+@pytest.mark.req("REQ-026")
 def test_a_rewritten_log_needs_the_exported_head(log, oversight_db):
     exported = log.head()
     tamper(oversight_db, "DELETE FROM events")
@@ -160,6 +165,7 @@ def test_an_untouched_registry_verifies(items, oversight_db, registry_db):
     assert result.registry_checked
 
 
+@pytest.mark.req("REQ-027")
 @pytest.mark.parametrize(
     "change",
     [
@@ -180,6 +186,7 @@ def test_a_changed_registry_row_is_detected(items, oversight_db, registry_db, ch
     assert result.chain_error is None
 
 
+@pytest.mark.req("REQ-027")
 @pytest.mark.parametrize(
     "change",
     [
@@ -226,6 +233,7 @@ def test_a_missing_planted_error_table_is_reported(items, oversight_db, registry
     assert "cannot be read" in errors[0]
 
 
+@pytest.mark.req("REQ-027")
 def test_a_real_item_relabelled_as_planted_is_detected(items, oversight_db, registry_db):
     with triggers_removed(registry_db, "item_registry"):
         registry_db.execute(
@@ -383,6 +391,7 @@ def snapshot(folder):
     return {path.name: path.read_bytes() for path in folder.glob("*.db")}
 
 
+@pytest.mark.req("REQ-028")
 def test_verifying_does_not_change_the_databases(
     items, oversight_db, registry_db, oversight_path, planted_path
 ):
@@ -393,6 +402,7 @@ def test_verifying_does_not_change_the_databases(
     assert snapshot(oversight_path.parent) == before
 
 
+@pytest.mark.req("REQ-028")
 def test_a_readonly_connection_cannot_write(log, oversight_path):
     with (
         closing(schema.open_readonly(oversight_path, "oversight")) as db,

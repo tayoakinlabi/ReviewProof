@@ -28,6 +28,7 @@ def test_global_limits_apply_and_a_queue_can_override_them():
     assert config.reporting.catch_rate_min == 0.9
 
 
+@pytest.mark.req("REQ-040")
 def test_the_individual_minimum_can_only_be_raised():
     assert parse(reporting={"individual_min_planted": 25}).reporting.individual_min_planted == 25
     with pytest.raises(ConfigError, match="cannot be below 10"):
@@ -79,6 +80,7 @@ def test_allowed_webhooks(address):
     assert parse(alerts={"qa_lead": {"webhook": address}}).alerts.webhook == address
 
 
+@pytest.mark.req("REQ-040")
 @pytest.mark.parametrize(
     ("alerts", "message"),
     [

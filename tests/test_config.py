@@ -99,6 +99,7 @@ def test_loaded_config_is_read_only():
         config.queues["other"] = config.queues["q"]
 
 
+@pytest.mark.req("REQ-044")
 @pytest.mark.parametrize(
     ("section", "key", "value", "message"),
     [
@@ -127,6 +128,7 @@ def test_invalid_values_are_rejected(section, key, value, message):
         parse(data)
 
 
+@pytest.mark.req("REQ-044")
 @pytest.mark.parametrize(("section", "key"), [("queues", "feedback"), ("systems", "model_version")])
 def test_missing_keys_are_rejected(section, key):
     data = valid()
@@ -143,6 +145,7 @@ def test_duplicate_names_are_rejected(section):
         parse(data)
 
 
+@pytest.mark.req("REQ-044")
 @pytest.mark.parametrize("prefix", ["", "rp-", " rp-reserved-", 7])
 def test_weak_reserved_prefix_is_rejected(prefix):
     data = {**valid(), "reserved_target_prefix": prefix}

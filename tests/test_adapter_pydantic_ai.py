@@ -144,7 +144,8 @@ class PydanticHarness(Harness):
         self._keep(result)
 
     def saved_state(self):
-        return "".join(part.decode("utf-8") for part in self.saved)
+        # After the last run there is no pause to keep.
+        return "".join(part.decode("utf-8") for part in self.saved if part is not None)
 
     def resume(self):
         history, pause = self._load()
@@ -219,6 +220,7 @@ LIBRARY_ERRORS = {
 }
 
 
+@pytest.mark.req("REQ-051")
 @pytest.mark.parametrize("name", LIBRARY_ERRORS)
 def test_no_error_from_a_write_reaches_the_model(make, offline, name):
     fail, kind = LIBRARY_ERRORS[name]

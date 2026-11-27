@@ -172,6 +172,7 @@ def test_connection_settings(oversight, pragma, expected):
     assert oversight.execute(f"PRAGMA {pragma}").fetchone()[0] == expected
 
 
+@pytest.mark.req("REQ-012")
 def test_oversight_items_cannot_show_which_are_planted(oversight):
     columns = {row["name"] for row in oversight.execute("PRAGMA table_info(items)")}
     assert columns == {
@@ -239,6 +240,7 @@ def test_an_unrelated_database_is_left_untouched(tmp_path):
     assert path.read_bytes() == before
 
 
+@pytest.mark.req("REQ-046")
 def test_a_newer_schema_is_refused(tmp_path):
     path = tmp_path / "x.db"
     with closing(create_oversight_db(path)) as db:
@@ -281,6 +283,7 @@ def log(oversight):
     return oversight
 
 
+@pytest.mark.req("REQ-024")
 @pytest.mark.parametrize(
     "statement",
     [
@@ -297,6 +300,7 @@ def test_events_cannot_be_updated_or_deleted(log, statement):
     assert rows(log, "events") == before
 
 
+@pytest.mark.req("REQ-024")
 @pytest.mark.parametrize("recursive_triggers", ["ON", "OFF"])
 @pytest.mark.parametrize(
     "row",
@@ -317,6 +321,7 @@ def test_events_cannot_be_replaced(log, row, recursive_triggers):
     assert rows(log, "events") == before
 
 
+@pytest.mark.req("REQ-024")
 def test_upsert_cannot_change_an_event(log):
     before = rows(log, "events")
     row = event_row(1)
@@ -330,6 +335,7 @@ def test_upsert_cannot_change_an_event(log):
     assert rows(log, "events") == before
 
 
+@pytest.mark.req("REQ-024")
 @pytest.mark.parametrize(
     ("row", "message"),
     [
@@ -350,6 +356,7 @@ def test_event_id_cannot_be_left_to_sqlite(log):
         insert(log, "events", **row)
 
 
+@pytest.mark.req("REQ-025")
 @pytest.mark.parametrize(
     "change",
     [
@@ -521,6 +528,7 @@ def test_two_approvals_then_retirement(planted):
     retire(planted)
 
 
+@pytest.mark.req("REQ-004")
 @pytest.mark.parametrize(
     "column", ["payload", "defect_class", "defect_field", "author", "reserved_target_id"]
 )
@@ -530,6 +538,7 @@ def test_planted_error_content_is_fixed(planted, column):
         planted.execute(f"UPDATE planted_errors SET {column} = {column}")
 
 
+@pytest.mark.req("REQ-004")
 @pytest.mark.parametrize(
     "statement",
     [
@@ -547,6 +556,7 @@ def test_approvals_and_retirement_cannot_be_rewritten(planted, statement):
         planted.execute(statement)
 
 
+@pytest.mark.req("REQ-004")
 @pytest.mark.parametrize(
     "row",
     [planted_row(reserved_target_id="rp-reserved-2"), planted_row(planted_error_id="PE-2")],

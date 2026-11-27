@@ -296,6 +296,7 @@ def tampered_copy(golden, tmp_path):
     ]
 
 
+@pytest.mark.req("REQ-035")
 def test_a_failed_check_replaces_the_report_rather_than_leaving_an_old_one(
     golden, tmp_path, capsys
 ):
@@ -350,6 +351,7 @@ def test_a_queue_below_its_threshold_fires_exactly_one_alert(golden, tmp_path, n
     assert "Sent by webhook." in capsys.readouterr().err
 
 
+@pytest.mark.req("REQ-043")
 def test_nothing_is_sent_when_nothing_is_wrong(golden, tmp_path, no_proxy, capsys):
     server = Receiver()
     try:

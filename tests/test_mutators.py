@@ -51,6 +51,7 @@ def test_a_draft_changes_only_the_declared_field_and_imports(registry_db, helper
     assert library.available(QUEUE.name) == []
 
 
+@pytest.mark.req("REQ-005")
 @pytest.mark.parametrize("helper", HELPERS)
 def test_a_draft_shares_nothing_with_its_source(helper):
     function, arguments = HELPERS[helper]

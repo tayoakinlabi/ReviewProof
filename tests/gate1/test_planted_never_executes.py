@@ -79,6 +79,7 @@ def target():
 # ----------------------------------------------------------------- normal running
 
 
+@pytest.mark.req("REQ-013")
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_a_rubber_stamping_reviewer_cannot_get_a_planted_error_executed(make, target, seed):
     deployment = make(rate=0.3)
@@ -110,6 +111,7 @@ def test_a_rubber_stamping_reviewer_cannot_get_a_planted_error_executed(make, ta
     assert deployment.verify().ok
 
 
+@pytest.mark.req("REQ-013")
 def test_a_planted_error_edited_and_approved_is_not_executed(ov, deployment, target):
     _, planted = submit_until_pair(ov)
     final = {**planted.payload, "description": "Edited by the reviewer."}
@@ -128,6 +130,7 @@ def test_a_rejected_item_of_either_kind_is_not_executed(ov, target):
     assert target.written == []
 
 
+@pytest.mark.req("REQ-014")
 def test_an_undecided_item_of_either_kind_is_not_executed(ov, target):
     for ticket in submit_until_pair(ov):
         ov.shown(ticket.token, "r-1")
@@ -136,6 +139,7 @@ def test_an_undecided_item_of_either_kind_is_not_executed(ov, target):
     assert target.written == []
 
 
+@pytest.mark.req("REQ-014", "REQ-016")
 def test_nothing_runs_twice(ov, target):
     for ticket in approved_pair(ov):
         ov.execute(ticket.token, ticket.payload, target)
@@ -145,6 +149,7 @@ def test_nothing_runs_twice(ov, target):
     assert len(target.written) == 1
 
 
+@pytest.mark.req("REQ-014")
 def test_a_changed_payload_is_refused_for_either_kind(ov, deployment, target):
     messages = []
     for ticket in approved_pair(ov):
@@ -162,6 +167,7 @@ def test_a_changed_payload_is_refused_for_either_kind(ov, deployment, target):
     assert reasons == ["payload_changed"] * 2
 
 
+@pytest.mark.req("REQ-014", "REQ-017")
 def test_an_edit_executes_only_the_edited_payload(ov, target):
     real, _ = submit_until_pair(ov)
     final = {**real.payload, "classification": "critical"}
@@ -201,6 +207,7 @@ def break_registry(how, ov, deployment, monkeypatch):
         monkeypatch.setattr("reviewproof.guard.commitment_of", bug)
 
 
+@pytest.mark.req("REQ-015")
 @pytest.mark.parametrize(
     "how",
     ["connection closed", "item_registry", "file missing", "locked", "unforeseen bug"],
@@ -226,6 +233,7 @@ def test_a_lost_planted_library_blocks_planted_items_only_safely(ov, deployment,
     assert target.written == []
 
 
+@pytest.mark.req("REQ-017")
 def test_after_an_outage_the_real_item_can_run_and_the_planted_one_still_cannot(
     ov, deployment, target, monkeypatch
 ):
@@ -290,6 +298,7 @@ def inject(ov, counter, which):
     return restore
 
 
+@pytest.mark.req("REQ-015")
 @pytest.mark.parametrize("forever", [False, True], ids=["one failure", "stays down"])
 @pytest.mark.parametrize("which", ["registry", "log", "both"])
 @pytest.mark.parametrize("kind", ["planted", "real"])
@@ -353,6 +362,7 @@ def relabel_as_real(deployment, item_id):
         )
 
 
+@pytest.mark.req("REQ-014")
 def test_relabelling_a_planted_error_as_real_is_caught(ov, deployment, target):
     _, planted = approved_pair(ov)
     relabel_as_real(deployment, planted_item_id(deployment))
@@ -402,6 +412,7 @@ def test_forging_the_log_entry_as_well_breaks_the_chain_link(ov, deployment, tar
     assert target.rejected_reserved == []
 
 
+@pytest.mark.req("REQ-014")
 def test_even_with_the_whole_log_rewritten_the_reserved_id_stops_it(ov, deployment, target):
     """The last line of defence: the registry now says real and the whole chain agrees."""
     _, planted = approved_pair(ov)
@@ -439,6 +450,7 @@ def test_turning_a_rejection_into_an_approval_is_caught(ov, deployment, target):
     assert target.written == []
 
 
+@pytest.mark.req("REQ-014")
 def test_a_second_forged_decision_is_caught(ov, deployment, target):
     from reviewproof.models import Decision, EventType
     from reviewproof.store.eventlog import EventLog
@@ -463,6 +475,7 @@ def test_a_second_forged_decision_is_caught(ov, deployment, target):
 # ----------------------------------------------------------------- concurrency and crashes
 
 
+@pytest.mark.req("REQ-016")
 def test_concurrent_execution_requests_run_a_real_item_once(ov, deployment):
     real, planted = approved_pair(ov)
     target, errors = TargetSystem(), []
@@ -503,6 +516,7 @@ with Oversight(config, "deviation-triage", db, planted) as ov:
 """
 
 
+@pytest.mark.req("REQ-016")
 def test_after_a_crash_during_execution_the_guard_does_not_retry(deployment, target):
     ov = deployment.open()
     [ticket] = ov.submit(item(0))
@@ -534,6 +548,7 @@ def test_after_a_crash_during_execution_the_guard_does_not_retry(deployment, tar
 # ----------------------------------------------------------------- the executor fails
 
 
+@pytest.mark.req("REQ-016")
 def test_a_failing_executor_is_logged_and_not_retried(ov, deployment, target):
     real, _ = approved_pair(ov)
 
@@ -559,6 +574,7 @@ def test_an_interrupted_executor_is_logged_too(ov, deployment):
     assert deployment.query("SELECT 1 AS x FROM events WHERE type = 'execute_failed'")
 
 
+@pytest.mark.req("REQ-018")
 def test_if_the_result_cannot_be_logged_the_caller_is_told_it_ran(ov, deployment, target):
     real, _ = approved_pair(ov)
     with closing(open_oversight_db(deployment.db)) as db:
@@ -581,6 +597,7 @@ def test_if_the_result_cannot_be_logged_the_caller_is_told_it_ran(ov, deployment
         ov.execute(real2.token, real2.payload, broken)
 
 
+@pytest.mark.req("REQ-015")
 def test_when_even_the_block_cannot_be_logged_nothing_runs(ov, deployment, target, caplog):
     real, planted = approved_pair(ov)
     with closing(open_oversight_db(deployment.db)) as db:
@@ -633,6 +650,7 @@ def test_bad_arguments_run_nothing(ov, target):
     assert target.written == []
 
 
+@pytest.mark.req("REQ-012")
 def test_logs_and_errors_never_name_a_planted_error(ov, deployment, target, caplog):
     _, planted = approved_pair(ov)
     with (

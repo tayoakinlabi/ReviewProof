@@ -198,6 +198,7 @@ def test_the_tool_needs_approval_and_has_no_time_limit(make, offline):
     assert function.timeout_seconds is None
 
 
+@pytest.mark.req("REQ-050")
 def test_a_standing_approval_cannot_write_what_was_not_reviewed(make, offline):
     """``always_approve`` lets the next call run with no pause. The guard stops it."""
     world = World(make, OpenAIHarness)
@@ -321,6 +322,7 @@ def test_an_unsafe_setting_added_after_the_pause_writes_nothing(make, offline, c
     assert world.agent.model_calls() == 1
 
 
+@pytest.mark.req("REQ-051")
 def test_a_write_cancelled_from_inside_stops_the_run(make, offline):
     """A hand-built tool's cancellation would otherwise become a message for the model."""
     world = started(make)

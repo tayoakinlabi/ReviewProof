@@ -72,6 +72,7 @@ def test_a_careful_reviewer_passes(q, pool, quiet):
     assert quiet.verify().ok, quiet.verify().registry_errors
 
 
+@pytest.mark.req("REQ-031")
 @pytest.mark.parametrize(
     ("label", "catch", "reject_correct"),
     [
@@ -149,6 +150,7 @@ def test_nothing_tells_which_items_are_defective(q, pool, quiet):
     assert len({e["commitment"] for e in entries}) == 20
 
 
+@pytest.mark.req("REQ-007", "REQ-032")
 def test_the_two_pools_never_mix(make):
     deployment = make(rate=0.5)
     ov = deployment.open()
@@ -170,6 +172,7 @@ def test_the_two_pools_never_mix(make):
         ov.qualification().start("r-1", mixed)
 
 
+@pytest.mark.req("REQ-032")
 def test_a_session_never_executes_or_enters_the_metrics(q, pool, quiet):
     sit(q, q.start("r-1", plan(pool)))
     assert load(quiet.db, quiet.planted_db).records == ()
@@ -191,6 +194,7 @@ def test_used_qualification_planted_errors_cannot_gain_approvals(ov, pool, q):
 # ----------------------------------------------------------------- the plan
 
 
+@pytest.mark.req("REQ-031")
 @pytest.mark.parametrize(
     ("changes", "message"),
     [
@@ -223,6 +227,7 @@ def test_bad_plans(q, pool, quiet, changes, message):
     assert quiet.query("SELECT 1 AS x FROM events WHERE type LIKE 'qualification%'") == []
 
 
+@pytest.mark.req("REQ-031")
 def test_a_session_needs_ten_defects_and_no_repeats_in_the_list(q, pool):
     with pytest.raises(PlanError, match="at least 10 planted errors.*has 9"):
         q.start("r-1", plan(pool[:9]))
@@ -302,6 +307,7 @@ def test_the_correct_items_file_must_be_a_list(tmp_path):
 # ----------------------------------------------------------------- fixed in advance
 
 
+@pytest.mark.req("REQ-031")
 def test_the_pass_mark_cannot_change_mid_session(q, ov, pool, quiet, tmp_path):
     path = write_plan(tmp_path, pool, **{"pass": {"min_caught": 12, "max_false_rejects": 0}})
     session = q.start("r-1", load_plan(path))
@@ -316,6 +322,7 @@ def test_the_pass_mark_cannot_change_mid_session(q, ov, pool, quiet, tmp_path):
     assert result.criteria == Criteria(12, 0) and not result.passed
 
 
+@pytest.mark.req("REQ-033")
 @pytest.mark.parametrize(
     "statement",
     [
@@ -361,6 +368,7 @@ def forge(deployment, event_type, **data):
         )
 
 
+@pytest.mark.req("REQ-033")
 def test_a_result_that_the_answers_do_not_support_is_detected(q, pool, quiet):
     session = q.start("r-1", plan(pool))
     for entry in session.items:
@@ -440,6 +448,7 @@ def test_unreadable_session_records_are_reported(q, pool, quiet):
 # ----------------------------------------------------------------- one session at a time
 
 
+@pytest.mark.req("REQ-032")
 def test_one_open_session_and_new_items_for_a_retake(ov, q, pool):
     session = q.start("r-1", plan(pool))
     with pytest.raises(TransitionError, match="unfinished session"):
@@ -452,6 +461,7 @@ def test_one_open_session_and_new_items_for_a_retake(ov, q, pool):
     assert sit(q, q.start("r-1", plan(fresh))).passed
 
 
+@pytest.mark.req("REQ-032")
 def test_abandoning_counts_as_not_passed_and_uses_the_items(q, pool, quiet):
     session = q.start("r-1", plan(pool, min_caught=1, max_false_rejects=4))
     for entry in session.items:
@@ -524,6 +534,7 @@ def test_a_judgment_comes_before_the_item_is_shown(q, pool, quiet):
     assert quiet.verify().ok
 
 
+@pytest.mark.req("REQ-033")
 @pytest.mark.parametrize(
     "statement",
     ["UPDATE qualification_judgments SET judgment = '{}'", "DELETE FROM qualification_judgments"],
@@ -556,6 +567,7 @@ def state(q, reviewer="r-1"):
     return q.status(reviewer).status
 
 
+@pytest.mark.req("REQ-034")
 def test_status_follows_the_ai_system_version(ov, q, pool, quiet):
     assert state(q) is QualificationStatus.NOT_QUALIFIED
     result = sit(q, q.start("r-1", plan(pool)))
@@ -576,6 +588,7 @@ def test_status_follows_the_ai_system_version(ov, q, pool, quiet):
     assert state(q) is QualificationStatus.REQUALIFICATION_REQUIRED
 
 
+@pytest.mark.req("REQ-034")
 def test_a_change_during_a_session_means_it_does_not_count(ov, q, pool):
     session = q.start("r-1", plan(pool))
     ov.register_system(model_version="2.0")

@@ -45,6 +45,7 @@ def worked(make):
     return deployment, ov
 
 
+@pytest.mark.req("REQ-030")
 def test_a_prompt_version_bump_flags_the_systems_reviewers(worked):
     deployment, ov = worked
     assert set(statuses(deployment).values()) == {"not_qualified"}
@@ -58,6 +59,7 @@ def test_a_prompt_version_bump_flags_the_systems_reviewers(worked):
     assert len(deployment.query("SELECT * FROM systems")) == 2
 
 
+@pytest.mark.req("REQ-030")
 @pytest.mark.parametrize(
     "change",
     [{"model_id": "other"}, {"model_version": "2.0"}, {"tool_schema_hash": "new"}],
@@ -67,6 +69,7 @@ def test_each_identifying_change_counts(worked, change):
     assert ov.register_system(**change) == ["r-1", "r-2"]
 
 
+@pytest.mark.req("REQ-030")
 def test_new_items_get_the_new_context_and_old_ones_keep_theirs(worked):
     deployment, ov = worked
     [old] = ov.submit(item(2))
@@ -109,6 +112,7 @@ def test_changing_the_settings_file_flags_reviewers_on_next_open(worked, caplog)
     assert "2 reviewer(s) need requalification" in caplog.text
 
 
+@pytest.mark.req("REQ-030")
 def test_going_back_to_an_earlier_context_is_also_a_change(worked):
     deployment, ov = worked
     ov.register_system(prompt_version="2")

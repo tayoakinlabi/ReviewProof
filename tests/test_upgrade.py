@@ -63,6 +63,7 @@ def events(path):
         return db.execute("SELECT * FROM events ORDER BY event_id").fetchall()
 
 
+@pytest.mark.req("REQ-046")
 def test_the_log_is_unchanged_by_the_upgrade(version_one):
     db_path, planted_path, head = version_one
     before = events(db_path)
@@ -105,6 +106,7 @@ def test_old_planted_errors_become_live_ones(version_one):
         assert row[0] == "live"
 
 
+@pytest.mark.req("REQ-046")
 @pytest.mark.parametrize(
     ("opener", "which"),
     [
@@ -184,6 +186,7 @@ def test_reading_without_upgrading_works_and_changes_nothing(version_one):
     assert version(db_path) == 1
 
 
+@pytest.mark.req("REQ-046")
 def test_a_copy_that_is_not_exact_undoes_the_upgrade(version_one, monkeypatch):
     db_path, _, _ = version_one
     before = events(db_path)

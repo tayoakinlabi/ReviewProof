@@ -22,6 +22,7 @@ def test_empty_log(event_log, oversight_db):
     assert verify(oversight_db).ok
 
 
+@pytest.mark.req("REQ-025")
 def test_the_hash_follows_the_documented_format(oversight_db):
     """Rebuild the hash from ADR-002 without using the module's own function."""
     log = EventLog(oversight_db, clock=lambda: TS)
@@ -109,6 +110,7 @@ def test_a_bad_clock_cannot_write_an_event(oversight_db):
     assert log.head().event_count == 0
 
 
+@pytest.mark.req("REQ-029")
 def test_a_transaction_commits_or_rolls_back_as_a_whole(event_log, oversight_db):
     with event_log.transaction():
         fill(event_log, 2)
@@ -129,6 +131,7 @@ def test_a_foreign_transaction_is_refused(event_log, oversight_db):
     oversight_db.execute("ROLLBACK")
 
 
+@pytest.mark.req("REQ-029")
 def test_a_locked_log_raises_store_error(event_log, oversight_path):
     with closing(open_oversight_db(oversight_path)) as other:
         other.execute("PRAGMA busy_timeout = 10")
@@ -152,6 +155,7 @@ def test_a_closed_database_raises_store_error(oversight_path):
 PATIENT = "PRAGMA busy_timeout = 60000"
 
 
+@pytest.mark.req("REQ-029")
 def test_concurrent_threads_cannot_fork_the_chain(oversight_db, oversight_path):
     writers, each = 6, 40
     errors = []
@@ -193,6 +197,7 @@ for _ in range(int(sys.argv[2])):
 """
 
 
+@pytest.mark.req("REQ-029")
 def test_concurrent_processes_cannot_fork_the_chain(oversight_db, oversight_path):
     command = [sys.executable, "-c", WRITER, str(oversight_path), "30", PATIENT]
     processes = [subprocess.Popen(command, stderr=subprocess.PIPE) for _ in range(4)]

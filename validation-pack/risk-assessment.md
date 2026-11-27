@@ -106,6 +106,8 @@ What you can examine, in the public repository:
 | Source code and its history | The repository |
 | Design records, with what was observed when a decision depended on it | [`docs/adr/`](../docs/adr/) |
 | Automated tests, including those for the execution guard | [`tests/`](../tests/) |
+| Which tests are tagged with each requirement | [Traceability matrix](trace-matrix.md) |
+| A record of one run of every test with every adapter, made for each change. GitHub keeps it for a limited time, so save the one you rely on | The `validation-evidence` file on the repository's Actions page |
 | Automated test runs on Linux and Windows, and for each adapter | The repository's Actions page |
 | Changes in each release, with what a validated user would retest | [Changelog](../CHANGELOG.md) |
 | How to report a vulnerability | [Security policy](../SECURITY.md) |

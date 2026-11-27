@@ -13,6 +13,7 @@ from reviewproof.models import FeedbackTiming
 from reviewproof.store import StoreError, open_planted_db
 
 
+@pytest.mark.req("REQ-037")
 @pytest.mark.parametrize(
     ("decision", "edited", "expected"),
     [
@@ -41,6 +42,7 @@ def decide(ov, ticket, decision="approve", reviewer="r-1", **arguments):
     ov.decided(ticket.token, reviewer, decision, **arguments)
 
 
+@pytest.mark.req("REQ-042")
 @pytest.mark.parametrize(("decision", "outcome"), [("approve", "miss"), ("reject", "catch")])
 def test_feedback_on_a_planted_error_only_and_only_once(deployment, decision, outcome):
     ov = immediate(deployment)
@@ -61,6 +63,7 @@ def test_feedback_on_a_planted_error_only_and_only_once(deployment, decision, ou
     assert deployment.verify().ok
 
 
+@pytest.mark.req("REQ-037")
 def test_an_edit_that_misses_the_defect_is_reported_as_a_miss(deployment):
     ov = immediate(deployment)
     _, planted = submit_until_pair(ov)
@@ -74,6 +77,7 @@ def test_an_edit_that_misses_the_defect_is_reported_as_a_miss(deployment):
     assert note.outcome is Outcome.MISS
 
 
+@pytest.mark.req("REQ-042")
 def test_each_reviewer_gets_their_own_in_decision_order(deployment):
     ov = immediate(deployment)
     first = submit_until_pair(ov)
@@ -92,6 +96,7 @@ def test_feedback_is_the_same_whether_or_not_execute_was_called(deployment):
     assert [n.outcome.value for n in ov.feedback("r-1")] == ["miss"]
 
 
+@pytest.mark.req("REQ-042")
 def test_a_batched_queue_waits_for_the_batch(deployment, ov):
     _, planted = submit_until_pair(ov)
     decide(ov, planted)

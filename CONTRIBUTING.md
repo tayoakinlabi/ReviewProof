@@ -34,3 +34,10 @@ git commit -s -m "Describe the change"
 
 This adds a `Signed-off-by: Your Name <you@example.com>` line. CI rejects pull requests with
 unsigned commits.
+
+## Requirements and tests
+
+A test written for a requirement in the [validation pack](validation-pack/requirements.md) is
+tagged with it: `@pytest.mark.req("REQ-001")`. Tag a test only if it checks that requirement.
+After changing tags or requirements, run `python validation-pack/trace_matrix.py` and commit
+the matrix. A change to what the software must do changes the requirement too.

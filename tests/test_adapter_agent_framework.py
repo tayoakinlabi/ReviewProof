@@ -227,6 +227,7 @@ class _Outside(BaseException):
     pass
 
 
+@pytest.mark.req("REQ-051")
 @pytest.mark.parametrize("middleware", MIDDLEWARE)
 @pytest.mark.parametrize(
     "error",
@@ -335,6 +336,7 @@ def test_a_failed_session_writes_nothing_more(make, offline):
     assert [a["record_id"] for a in world.written] == [PROPOSAL["record_id"]]
 
 
+@pytest.mark.req("REQ-050")
 def test_a_standing_approval_cannot_write_what_was_not_reviewed(make, offline):
     world = World(make, AgentFrameworkHarness)
     world.agent.model = Script(calls([PROPOSAL]), calls([SECOND], start=1))

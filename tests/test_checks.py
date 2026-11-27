@@ -56,6 +56,7 @@ def test_the_catch_rate_rolls_over_the_latest_ones():
     )
 
 
+@pytest.mark.req("REQ-036")
 def test_repeats_do_not_count():
     records = planted_run([True] * 10) + planted_run([False] * 10, first_sight=False)
     check = check_catch_rate(records, LIMITS)
@@ -79,6 +80,7 @@ def test_each_weak_class_is_named_in_one_alert():
     assert "wrong target" not in check.detail  # only 9: not judged
 
 
+@pytest.mark.req("REQ-039")
 def test_classes_without_enough_data_are_not_judged():
     assert check_classes(planted_run([False] * 9), LIMITS).state is State.NOT_ENOUGH_DATA
     assert check_classes(planted_run([True] * 10), LIMITS).state is State.OK
@@ -95,6 +97,7 @@ def approvals(fast, slow, week=0):
     ]
 
 
+@pytest.mark.req("REQ-038")
 @pytest.mark.parametrize(
     ("fast", "slow", "state"),
     [
@@ -115,11 +118,13 @@ def test_weeks_are_judged_separately_and_reported_together():
     assert "week 10" not in check.detail
 
 
+@pytest.mark.req("REQ-038")
 def test_exactly_the_minimum_time_is_not_fast():
     records = [record(dwell=30) for _ in range(10)]
     assert check_fast_approvals(records, MINIMUM, LIMITS).state is State.OK
 
 
+@pytest.mark.req("REQ-038")
 def test_rejections_are_not_fast_approvals():
     records = [record(dwell=1, decision=Decision.REJECT) for _ in range(20)]
     assert check_fast_approvals(records, MINIMUM, LIMITS).state is State.NOT_ENOUGH_DATA
@@ -164,6 +169,7 @@ def one_session(outcomes):
     return planted_run(outcomes)
 
 
+@pytest.mark.req("REQ-038")
 @pytest.mark.parametrize(
     ("late_catches", "state"), [(10, State.OK), (9, State.OK), (8, State.BREACH)]
 )
@@ -180,6 +186,7 @@ def test_fatigue_needs_enough_on_both_sides():
     assert fatigue([], {}).drop is None
 
 
+@pytest.mark.req("REQ-038")
 @pytest.mark.parametrize(
     ("size", "early"),
     [(1, [True]), (2, [True, False]), (5, [True, True, True, False, False])],
@@ -190,6 +197,7 @@ def test_the_middle_item_of_an_odd_session_counts_as_early(size, early):
     assert [found[r.item_id].early for r in records] == early
 
 
+@pytest.mark.req("REQ-038")
 def test_a_long_pause_starts_a_new_session():
     records = [record(minute=0), record(minute=30), record(minute=61), record(minute=62)]
     found = places(records)
@@ -197,6 +205,7 @@ def test_a_long_pause_starts_a_new_session():
     assert [found[r.item_id].position for r in records] == [1, 2, 1, 2]
 
 
+@pytest.mark.req("REQ-038")
 def test_sessions_are_per_person_and_cross_queues():
     records = [
         record(minute=0, reviewer="a"),
@@ -233,6 +242,7 @@ def test_safety_stops_alert(reasons, state):
     assert check_safety(refusals).state is state
 
 
+@pytest.mark.req("REQ-040")
 def test_evaluate_runs_every_rule_and_names_no_one():
     records = planted_run([False] * 12, reviewer="SECRET-REVIEWER") + agreeing(20)
     checks = evaluate(records, places(records), MINIMUM, LIMITS)
@@ -248,6 +258,7 @@ def test_evaluate_runs_every_rule_and_names_no_one():
     assert "SECRET-REVIEWER" not in text and "PE-" not in text and "item-" not in text
 
 
+@pytest.mark.req("REQ-039")
 def test_no_data_is_never_a_pass():
     checks = evaluate([], {}, MINIMUM, LIMITS)
     states = {c.rule: c.state for c in checks}

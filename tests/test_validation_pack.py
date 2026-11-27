@@ -80,3 +80,25 @@ def test_links_in_the_pack_work(path):
         assert file.exists(), link
         if anchor:
             assert anchor in anchors(file.read_text(encoding="utf-8")), link
+
+
+# ----------------------------------------------------------------- test scripts
+
+
+def test_every_deployment_duty_has_a_script_or_a_document_check():
+    scripts = read("test-scripts.md")
+    known = set(defined(read("requirements.md"), "DEP"))
+    assert not known - mentioned(scripts, "DEP")
+
+
+def test_manual_scripts_are_numbered_and_every_step_can_be_recorded():
+    scripts = read("test-scripts.md")
+    numbers = re.findall(r"^### (MT-\d{3}): ", scripts, flags=re.MULTILINE)
+    assert numbers == [f"MT-{n:03d}" for n in range(1, len(numbers) + 1)]
+    for section in re.split(r"^### MT-", scripts, flags=re.MULTILINE)[1:]:
+        section = section.split("\n## ")[0]
+        assert "| Step | Do | Expected result | Actual | Pass? |" in section, section[:40]
+        steps = re.findall(r"^\| \d+ \|.*$", section, flags=re.MULTILINE)
+        assert steps, section[:40]
+        for step in steps:
+            assert step.endswith("| | |"), step[:60]  # actual and pass are left empty

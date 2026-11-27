@@ -5,6 +5,7 @@ import pytest
 from reviewproof.metrics import Rate, wilson
 
 
+@pytest.mark.req("REQ-036")
 @pytest.mark.parametrize(
     ("successes", "total", "low", "high"),
     [

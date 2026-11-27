@@ -24,6 +24,7 @@ def places(golden, projection):
     return sessions(projection.records, gaps)
 
 
+@pytest.mark.req("REQ-038")
 def test_every_scenario_item_is_projected(golden, projection):
     # 19 real items (R1-R19) and 18 planted: P01-P12, Q01, Q02, Q04, Q07, X01 and X02.
     assert len(projection.records) == len(golden.ids) == 37
@@ -34,6 +35,7 @@ def test_every_scenario_item_is_projected(golden, projection):
     assert "prompt 1" in context.label
 
 
+@pytest.mark.req("REQ-038")
 def test_each_decided_item_matches_the_hand_built_table(golden, projection, places):
     expected = {row["label"]: row for row in golden_log.read("expected_items.csv")}
     decided = [r for r in projection.records if r.decided]
@@ -58,6 +60,7 @@ def test_each_decided_item_matches_the_hand_built_table(golden, projection, plac
         assert record.dwell_ms == int(row["dwell_s"]) * 1000
 
 
+@pytest.mark.req("REQ-036")
 def test_undecided_items(golden, projection):
     undecided = {golden.label_of(r.item_id): r for r in projection.records if not r.decided}
     assert set(undecided) == {"R18", "R19", "X02"}
@@ -102,6 +105,7 @@ def values(summary):
     return found
 
 
+@pytest.mark.req("REQ-036", "REQ-038")
 @pytest.mark.parametrize("scope", ["queue", "A", "B"])
 def test_each_metric_matches_the_hand_value(golden, projection, places, scope):
     records = projection.records

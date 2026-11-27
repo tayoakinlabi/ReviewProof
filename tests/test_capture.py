@@ -37,6 +37,7 @@ def everything_in(path):
 # ----------------------------------------------------------------- reducing a trace
 
 
+@pytest.mark.req("REQ-023")
 def test_only_ids_types_times_and_hashes_are_kept():
     first, second = trace_records(STEPS, SALT)
     assert set(first) == {"step_id", "step_type", "inputs_hash", "outputs_hash", "ts_utc"}
@@ -116,6 +117,7 @@ def test_the_trace_digest_ignores_reading_order():
 # ----------------------------------------------------------------- review context
 
 
+@pytest.mark.req("REQ-022")
 def test_a_manifest_is_completed_with_empty_lists():
     assert review_manifest({"steps": ["a"]}) == {"sources": [], "steps": ["a"], "fields": []}
     assert review_manifest(None) is None
@@ -193,6 +195,7 @@ def test_real_items_with_traces_and_planted_items_look_alike_in_the_log(deployme
     assert deployment.verify().ok
 
 
+@pytest.mark.req("REQ-022")
 def test_context_is_stored_per_showing(deployment, ov):
     real, planted = submit_until_pair(ov)
     for ticket in (real, planted):
