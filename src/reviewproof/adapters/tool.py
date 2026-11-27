@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 import inspect
+import json
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -176,6 +177,18 @@ class ReviewedTool:
                 value.close()
             raise TypeError("write returned something to await, so it may not have run")
         return value
+
+
+def reply_text(reply: Any) -> str:
+    """A tool result as text, for a library that wants text. It must not fail: by the time it
+    is called, the write has happened.
+    """
+    if isinstance(reply, str):
+        return reply
+    try:
+        return json.dumps(reply, default=str, ensure_ascii=False)
+    except (TypeError, ValueError, RecursionError):
+        return str(reply)
 
 
 def _is_async(function: Callable[..., Any]) -> bool:

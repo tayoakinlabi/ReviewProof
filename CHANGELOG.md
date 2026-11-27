@@ -22,6 +22,9 @@ database format. Each release says what a validated user would need to retest.
   [ADR-005](docs/adr/0005-adapters.md).
 - LangGraph adapter, as the optional extra `reviewproof[langgraph]`: `ReviewStep` gives each
   reviewed tool call its own step. See the [guide](docs/guides/langgraph.md).
+- OpenAI Agents SDK adapter, as `reviewproof[openai-agents]`: `ReviewTools` builds the
+  reviewed function tools. See the [guide](docs/guides/openai-agents.md), starting with
+  what the SDK sends as traces by default.
 
 ### Change impact
 

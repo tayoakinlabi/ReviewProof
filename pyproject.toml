@@ -21,6 +21,7 @@ dependencies = ["PyYAML>=6.0"]
 
 [project.optional-dependencies]
 langgraph = ["langgraph>=1.2.24"]
+openai-agents = ["openai-agents>=0.26.0"]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "jsonschema>=4.21", "hypothesis>=6.100"]
 
 [project.urls]

@@ -131,9 +131,10 @@ use up the one attempt.
 
 Agent libraries pause before a tool runs and resume it later. Between the two they may run code
 again, resume twice or approve by themselves. So **the library's approval only wakes the tool;
-ReviewProof decides what may be written.** There is an adapter for
-[LangGraph](langgraph.md). Adapters for other libraries are not included yet. `ReviewedTool`
-is the part they share, and you can use it directly:
+ReviewProof decides what may be written.** There are adapters for
+[LangGraph](langgraph.md) and the [OpenAI Agents SDK](openai-agents.md). Adapters for other
+libraries are not included yet. `ReviewedTool` is the part they share, and you can use it
+directly:
 
 ```python
 from reviewproof import CallState

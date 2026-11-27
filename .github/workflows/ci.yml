@@ -38,33 +38,41 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.10", "3.14"]
-        langgraph: ["==1.2.24", "newest"]
+        release: [oldest, newest]
+        adapter:
+          - {package: langgraph, oldest: "1.2.24", module: langgraph, import: langgraph.types}
+          - {package: openai-agents, oldest: "0.26.0", module: openai_agents, import: agents}
+    name: adapters (${{ matrix.adapter.package }}, ${{ matrix.release }}, ${{ matrix.python }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install -e ".[dev,langgraph]"
-      - name: Choose the LangGraph release
+      - run: python -m pip install -e ".[dev,${{ matrix.adapter.package }}]"
+      - name: Choose the library release
         shell: bash
         env:
-          WANTED: ${{ matrix.langgraph }}
+          PACKAGE: ${{ matrix.adapter.package }}
+          OLDEST: ${{ matrix.adapter.oldest }}
+          RELEASE: ${{ matrix.release }}
         run: |
-          if [ "$WANTED" = newest ]; then
-            python -m pip install --upgrade langgraph
+          if [ "$RELEASE" = newest ]; then
+            python -m pip install --upgrade "$PACKAGE"
           else
-            python -m pip install "langgraph$WANTED"
+            python -m pip install "$PACKAGE==$OLDEST"
           fi
-          python -m pip show langgraph
-      # If LangGraph could not be imported, its tests would be skipped without failing.
-      - run: python -c "import langgraph.types"
-      - run: pytest tests/test_adapter_tool.py tests/test_adapter_langgraph.py
+          python -m pip show "$PACKAGE"
+      # If the library could not be imported, its tests would be skipped without failing.
+      - run: python -c "import ${{ matrix.adapter.import }}"
+      - run: pytest tests/test_adapter_tool.py tests/test_adapter_${{ matrix.adapter.module }}.py
       - name: At least 90% coverage of the adapter files
         shell: bash
+        env:
+          MODULE: ${{ matrix.adapter.module }}
         run: |
-          for file in adapters/tool adapters/langgraph; do
-            coverage report --fail-under=90 "src/reviewproof/$file.py"
+          for file in tool "$MODULE"; do
+            coverage report --fail-under=90 "src/reviewproof/adapters/$file.py"
           done
 
   dco:

@@ -2,7 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-26
-- **Amended:** 2026-11-27 ([LangGraph, and what the review queue can show](#amendment-of-2026-11-27))
+- **Amended:** 2026-11-27 ([LangGraph, and what the review queue can show](#amendment-of-2026-11-27);
+  [OpenAI Agents SDK](#amendment-openai-agents-sdk))
 - **Amends:** ADR-003 (replay-safe `submit`, three new methods, and what server
   code can learn about a pair)
 
@@ -112,6 +113,8 @@ Approval inside the agent's own chat is not supported.
 
 ### 5. A failure after approval stops the run
 
+*For the OpenAI Agents SDK, [amended](#amendment-openai-agents-sdk) with further conditions.*
+
 If the guard refuses, or the write fails, or it ran but could not be logged, the error reaches
 the host. It must not become text that lets the model try again: a retry would be a new call,
 and if approved, could repeat a write that had partly happened.
@@ -219,3 +222,28 @@ This happened in a hand-written step and in LangGraph's prebuilt tool node.
    resume on a schedule unless the queue is busy enough to hide this. In a very quiet queue a
    schedule alone may not hide it: if only one decision was made since the last resume, what
    arrives next still points to it.
+
+## Amendment: OpenAI Agents SDK
+
+**Accepted 2026-11-27. Found while building that adapter.** Observed with `openai-agents` 0.26.0 and a
+scripted model.
+
+**What was missed.** Section 5 treats stopping the run as settled by
+`failure_error_function=None`. It covers a tool's ordinary errors, but not these, each of which
+told the model something other than what happened and let the run continue:
+
+| Setting or event | The model was told |
+| --- | --- |
+| A time limit on the tool, with its default behaviour | The call timed out. The write still happened, afterwards. |
+| An output guardrail that replaces the result | The result was blocked. The write had happened. |
+| A hand-built tool raising a cancellation | An error occurred while running the tool. |
+
+1. **ReviewProof builds the reviewed tools.** A reviewed tool with a time limit or an output
+   guardrail is refused, at the pause and again just before a write. A cancellation raised by
+   the write function is turned into an error that stops the run.
+2. **The host must resume from the newest saved state.** The SDK keeps each finished call's
+   result in the state, so each call can resume on its own: that is this library's replayable
+   step. Resuming an older state ran a finished call again, which the guard refuses.
+3. **After a failed write the host must not carry on from a saved state.** Calls approved
+   together run together, so another may have written although the run returned no result.
+

@@ -15,7 +15,7 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from reviewproof.adapters.tool import ReviewedTool
+from reviewproof.adapters.tool import ReviewedTool, reply_text
 from reviewproof.errors import OversightError
 from reviewproof.models import CallState
 
@@ -67,7 +67,7 @@ class ReviewStep:
         # LangGraph returns on resume is ignored: ReviewProof's record decides.
         interrupt({_MARK: {"status": PAUSE, "tool": name, "key": key}})
         outcome = tool.run(key, arguments)
-        message = ToolMessage(content=_text(outcome.reply), tool_call_id=call_id, name=name)
+        message = ToolMessage(content=reply_text(outcome.reply), tool_call_id=call_id, name=name)
         return {self._messages_key: [message]}
 
     def resume_command(self, graph: Any, config: Mapping[str, Any]) -> Command | None:
@@ -117,13 +117,3 @@ def _key(call_id: str) -> str:
         raise OversightError("the run needs a text thread_id in its configurable settings")
     # As a JSON list, so that no two pairs can spell the same key.
     return json.dumps([thread, call_id])
-
-
-def _text(reply: Any) -> str:
-    """A tool result as text. It must not fail: by now the write has happened."""
-    if isinstance(reply, str):
-        return reply
-    try:
-        return json.dumps(reply, default=str, ensure_ascii=False)
-    except (TypeError, ValueError, RecursionError):
-        return str(reply)
