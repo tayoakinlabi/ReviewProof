@@ -5,13 +5,14 @@ again from its start, a saved pause can be resumed any number of times, resuming
 without question, and the tool can be run with no pause.
 """
 
+import contextlib
 import copy
 import json
 
 import pytest
 from conformance import PROPOSAL, AdapterConformance, Harness, World
 
-from reviewproof import GuardError, OversightError
+from reviewproof import CallState, GuardError, OversightError
 from reviewproof.adapters.tool import NOT_APPROVED, ReviewedTool, ReviewPending
 
 
@@ -20,41 +21,55 @@ class _Pause(Exception):
 
 
 class StandInHarness(Harness):
-    key = "thread-1/call-1"
+    """Each call has its own step, which runs from the top on every resume."""
 
-    def __init__(self, tool, arguments):
-        super().__init__(tool, arguments)
-        self.state = {"call": {"id": "call-1", "arguments": arguments}, "approved": False}
-        self.state["replies"] = []
+    key = "thread-1/call-0"
+
+    def __init__(self, tool, *proposals):
+        super().__init__(tool, *proposals)
+        calls = [
+            {"key": f"thread-1/call-{n}", "arguments": arguments, "approved": False, "done": False}
+            for n, arguments in enumerate(proposals)
+        ]
+        self.state = {"calls": calls, "replies": []}
         self.asked = 0
 
     def _ask_model(self):
         self.asked += 1
 
-    def _step(self):
-        """The paused step. Every resume runs it from the top."""
-        call = self.state["call"]
-        self.tool.submit(self.key, call["arguments"])
-        if not self.state["approved"]:
+    def _step(self, call):
+        self.tool.submit(call["key"], call["arguments"])
+        if not call["approved"]:
             raise _Pause("A review is pending.")
-        outcome = self.tool.run(self.key, call["arguments"])
+        outcome = self.tool.run(call["key"], call["arguments"])
         self.state["replies"].append(json.dumps(outcome.reply))
-        self._ask_model()
+        call["done"] = True
+
+    def _run(self):
+        """Run every unfinished step. The model is asked again once all have finished."""
+        for call in [c for c in self.state["calls"] if not c["done"]]:
+            with contextlib.suppress(_Pause):
+                self._step(call)
+        if all(c["done"] for c in self.state["calls"]):
+            self._ask_model()
 
     def start(self):
         self._ask_model()
-        with pytest.raises(_Pause):
-            self._step()
+        self._run()
 
     def saved_state(self):
         return json.dumps(self.state) + "A review is pending."
 
     def resume(self):
-        self.force_resume()
+        for call in self.state["calls"]:
+            if self.tool.state(call["key"]) is not CallState.WAITING:
+                call["approved"] = True
+        self._run()
 
     def force_resume(self):
-        self.state["approved"] = True
-        self._step()
+        for call in self.state["calls"]:
+            call["approved"] = True
+        self._run()
 
     def run_without_pause(self):
         self.tool.run(self.key, self.arguments)

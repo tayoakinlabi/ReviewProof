@@ -131,8 +131,9 @@ use up the one attempt.
 
 Agent libraries pause before a tool runs and resume it later. Between the two they may run code
 again, resume twice or approve by themselves. So **the library's approval only wakes the tool;
-ReviewProof decides what may be written.** Adapters for particular libraries are not released
-yet. `ReviewedTool` is the part they will share, and you can use it directly:
+ReviewProof decides what may be written.** There is an adapter for
+[LangGraph](langgraph.md). Adapters for other libraries are not included yet. `ReviewedTool`
+is the part they share, and you can use it directly:
 
 ```python
 from reviewproof import CallState
@@ -173,6 +174,9 @@ assert outcome.reply == "saved"
 assert written == ["QMS-301", "QMS-302"]
 ```
 
+- **One reviewed call to each step that can be replayed.** If your library runs a paused step
+  again, a step with two reviewed calls reaches the first write again when it resumes for the
+  second. The guard refuses it, and the second approved call never runs.
 - **Keys.** A key names one proposed action and must be the same each time that code runs. The
   same key with a different target, content or reviewer is refused, so build the proposal
   before the step that pauses, not inside it.
@@ -200,7 +204,11 @@ A planted item exists only in your review queue. While items are waiting, a revi
 not be able to watch** the agent's traces, saved state or logs, the target system as it
 changes, or **whether the agent continues after a decision**. Any of these can show which item
 is planted. So the person using an agent cannot be the one who reviews its actions as it works.
-ReviewProof cannot enforce this: your design and your procedures must.
+The review queue can show it too: in a quiet queue, the agent's next action arriving right
+after a decision shows that the agent continued. Resume agents on a schedule, not straight
+after each decision, unless the queue is busy enough to hide the connection. In a very quiet
+queue a schedule alone may not hide it. ReviewProof cannot enforce any of this: your design
+and your procedures must.
 
 ## Qualification sessions
 

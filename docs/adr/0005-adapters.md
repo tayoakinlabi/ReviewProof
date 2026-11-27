@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-26
+- **Amended:** 2026-11-27 ([LangGraph, and what the review queue can show](#amendment-of-2026-11-27))
 - **Amends:** ADR-003 (replay-safe `submit`, three new methods, and what server
   code can learn about a pair)
 
@@ -99,6 +100,8 @@ item. The rule stays: nothing of this reaches a reviewer.
 
 ### 4. Planted tickets never touch the agent
 
+*What the pause says was [amended](#amendment-of-2026-11-27).*
+
 Tickets go only to `enqueue`. The pause, saved state, checkpoints, messages and anything the
 adapter returns to the library hold no ticket token and no planted content. The pause says only
 that a review is pending. Each adapter has a test that saves the library's state after a pause
@@ -157,6 +160,8 @@ opens an `Oversight` for each use.
 
 ### 9. What a deployment must keep from reviewers
 
+*[Amended](#amendment-of-2026-11-27) to cover the review queue.*
+
 A planted item exists only in the review queue. A reviewer who can see the agent's traces,
 saved state or logs, or the target system as it changes, can tell planted from real. So can a
 reviewer who sees **whether the agent continues after a decision**: it continues only after the
@@ -184,3 +189,33 @@ enforce this.
 - A validated user would need to retest the gate and the guard.
 - The host still has work to do: a review screen, an idempotent `enqueue`, a call to `settle`,
   resuming the agent, and for edits, `approved_payload`.
+
+## Amendment of 2026-11-27
+
+**Accepted. Found while building the LangGraph adapter.** Observed with `langgraph` 1.2.24
+and `langgraph-prebuilt` 1.1.3, as before.
+
+**What was missed.** The first scripts proposed one call. With two reviewed calls in one step,
+resuming for the second ran the step again and reached the first write. The guard would refuse
+it, so nothing is written twice, but the run breaks and the second approved call never runs.
+This happened in a hand-written step and in LangGraph's prebuilt tool node.
+
+1. **Every adapter must give each reviewed call its own replayable step.** The shared tests now
+   propose two calls at once and require each to run once.
+2. **LangGraph: ReviewProof provides the step.** `ReviewStep` takes one call, sent with
+   LangGraph's `Send`; given anything else it refuses before submitting. Its errors stop the
+   run, which settles section 5 for this adapter. Using a `ReviewedTool` inside the prebuilt tool
+   node is **not supported**: by default that node does stop the run on a failed write, but with
+   `handle_tool_errors=True` it turned the failure into text for the model, and calls can share
+   its step. Saving each write as a LangGraph task also worked in a trial, but showed one pause
+   at a time and would rely on calls being matched by order after a restart. On Python 3.10
+   the adapter works with `invoke` only: plain LangGraph cannot pause inside `ainvoke` there.
+   The adapter refuses it before anything is submitted.
+3. **The pause names the tool and the key.** This replaces "the pause says only that a review is
+   pending" in section 4. The host needs the key to resume the right pause. It holds no ticket
+   and no content, and the review screen is still built only from tickets.
+4. **Section 9 also covers the review queue.** In a quiet queue, the agent's next action
+   arriving right after a decision shows that the decided item was real. The guides tell hosts to
+   resume on a schedule unless the queue is busy enough to hide this. In a very quiet queue a
+   schedule alone may not hide it: if only one decision was made since the last resume, what
+   arrives next still points to it.

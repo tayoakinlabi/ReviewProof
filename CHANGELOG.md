@@ -19,8 +19,9 @@ database format. Each release says what a validated user would need to retest.
 - For agents that pause and resume: `submit(..., key=...)` is safe to repeat, and
   `settle()`, `call_status()` and `execute_call()` connect a decision to the paused call.
   `reviewproof.adapters.tool.ReviewedTool` wraps a write tool. See
-  [ADR-005](docs/adr/0005-adapters.md). Adapters for particular agent libraries are not
-  included yet.
+  [ADR-005](docs/adr/0005-adapters.md).
+- LangGraph adapter, as the optional extra `reviewproof[langgraph]`: `ReviewStep` gives each
+  reviewed tool call its own step. See the [guide](docs/guides/langgraph.md).
 
 ### Change impact
 

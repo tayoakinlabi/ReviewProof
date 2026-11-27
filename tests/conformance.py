@@ -22,14 +22,18 @@ from reviewproof import CallState, GuardError, Oversight, OversightError
 from reviewproof.adapters.tool import NOT_APPROVED, ReviewedTool, ReviewPending
 
 PROPOSAL = {"record_id": "QMS-REC-0001", **ITEMS[0], "deviation_id": "DEV-2025-7001"}
+SECOND = {"record_id": "QMS-REC-0002", **ITEMS[1], "deviation_id": "DEV-2025-7002"}
 
 
 class Harness(ABC):
-    """One agent whose model proposes one call to the reviewed tool, with ``arguments``."""
+    """One agent whose model proposes calls to the reviewed tool, all in its first message,
+    one for each of ``proposals``. Where a method speaks of "the call", it means the first.
+    """
 
-    def __init__(self, tool: ReviewedTool, arguments: dict[str, Any]) -> None:
+    def __init__(self, tool: ReviewedTool, *proposals: dict[str, Any]) -> None:
         self.tool = tool
-        self.arguments = arguments
+        self.proposals = proposals
+        self.arguments = proposals[0]
 
     @abstractmethod
     def start(self) -> None:
@@ -41,7 +45,7 @@ class Harness(ABC):
 
     @abstractmethod
     def resume(self) -> None:
-        """Resume as the host should once ``tool.state(key)`` is no longer waiting."""
+        """Resume, as the host should, every call whose action has been decided."""
 
     @abstractmethod
     def force_resume(self) -> None:
@@ -76,7 +80,9 @@ class Harness(ABC):
 class World:
     """A deployment, a review queue, a target system and one agent."""
 
-    def __init__(self, make: Callable, harness: type[Harness]) -> None:
+    def __init__(
+        self, make: Callable, harness: type[Harness], proposals: tuple = (PROPOSAL,)
+    ) -> None:
         self.deployment = make(rate=0.5)  # a planted item with every submission
         self.reviews = self.deployment.open()
         self.deployment.load_planted(self.reviews)
@@ -85,7 +91,7 @@ class World:
         self.failure: Exception | None = None
         self.edits: dict[str, dict[str, Any]] = {}
         self.tool = self.make_tool(approved_payload=self.edit_for)
-        self.agent = harness(self.tool, dict(PROPOSAL))
+        self.agent = harness(self.tool, *(dict(p) for p in proposals))
         self._harness = harness
 
     def make_tool(self, **options: Any) -> ReviewedTool:
@@ -116,6 +122,10 @@ class World:
         proposed = {k: v for k, v in PROPOSAL.items() if k != "record_id"}
         real = next(t for t, payload in self.queue.items() if payload == proposed)
         return real, next(t for t in self.queue if t != real)
+
+    def real_token(self, proposal: dict[str, Any]) -> str:
+        content = {k: v for k, v in proposal.items() if k != "record_id"}
+        return next(t for t, payload in self.queue.items() if payload == content)
 
     def decide(self, token: str, decision: str = "approve", final: Any = None) -> CallState:
         self.reviews.shown(token, "r-1")
@@ -240,6 +250,29 @@ class AdapterConformance:
             world.agent.force_resume()
         assert set(world.queue) == tickets
         assert world.events() == events
+
+    def test_two_calls_proposed_at_once_each_run_once(self, make, offline):
+        """A library that runs a step again must not reach an earlier call's write again."""
+        world = World(make, self.harness, (PROPOSAL, SECOND))
+        world.agent.start()
+        world.decide(world.real_token(SECOND))
+        world.agent.resume()
+        assert world.written == [SECOND]
+        world.decide(world.real_token(PROPOSAL))
+        world.agent.resume()
+        assert world.written == [SECOND, PROPOSAL]
+        assert len(world.agent.replies()) == 2
+        assert world.deployment.verify().ok
+
+    def test_two_calls_decided_before_one_resume_each_run_once(self, make, offline):
+        world = World(make, self.harness, (PROPOSAL, SECOND))
+        world.agent.start()
+        world.decide(world.real_token(PROPOSAL))
+        world.decide(world.real_token(SECOND), "reject")
+        world.agent.resume()
+        assert world.written == [PROPOSAL]
+        replies = world.agent.replies()
+        assert len(replies) == 2 and any(NOT_APPROVED in reply for reply in replies)
 
     @pytest.mark.parametrize("error", [ConnectionError("down"), ValueError("bad record")])
     def test_a_failed_write_stops_the_run(self, world, error):
