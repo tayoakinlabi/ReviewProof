@@ -9,7 +9,7 @@ passed: for that, make a record from a test run, as the
 Nor does a tag show that the tests are enough for your use. The deployment duties have
 no tests here: they are yours to test.
 
-52 requirements, 197 tagged tests. A test may cover several requirements, and may run with several inputs.
+52 requirements, 198 tagged tests. A test may cover several requirements, and may run with several inputs.
 
 ## REQ-001
 
@@ -279,6 +279,8 @@ On verification, report any changed, removed or reordered event; and, given a he
 
 Commit in the log, for each item, to whether it is real or planted, its target ID and any planted error behind it with its approvals, and report on verification any later change to them.
 
+- [`tests/test_control_tables.py`](../tests/test_control_tables.py)
+  - `test_a_changed_approval_is_found_once_the_planted_error_has_been_used`
 - [`tests/test_verify.py`](../tests/test_verify.py)
   - `test_a_changed_registry_row_is_detected`
   - `test_a_planted_error_changed_after_use_is_detected`

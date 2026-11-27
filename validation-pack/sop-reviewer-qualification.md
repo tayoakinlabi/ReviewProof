@@ -45,7 +45,9 @@ DEP-008 and DEP-012, in the [requirements](requirements.md#deployment-duties). R
 | A5 and A6 | Before first review, and after each change of the AI system's version | **[FILL]** |
 | A7 and above | As above, and every **[FILL]** | **[FILL]** |
 
-A High adjusted category moves a queue up one row.
+A High, Very High or Critical adjusted category moves a queue up one row (*proposed*). The
+settings have no Very High or Critical, and refuse half steps: see
+[how to record your VITAL rating](vital-mapping.md#recording-your-vital-risk-rating).
 
 **ReviewProof reports status and blocks no one** (DEP-014). **[FILL: who may review without a
 current qualification, if anyone, under what supervision and for how long, and how your

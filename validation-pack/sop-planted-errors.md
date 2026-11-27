@@ -46,7 +46,7 @@ instead.]**
 
    | Setting | Meaning | Value and reason |
    | --- | --- | --- |
-   | `vital_base_risk`, `vital_adjusted_category` | Set the planted share unless you set it: 1% of items for A1 to A4, 2% for A5 and A6, 3% for A7 and above, one step higher for a High adjusted category (*proposed*) | **[FILL]** |
+   | `vital_base_risk`, `vital_adjusted_category` | Set the planted share unless you set it: 1% of items for A1 to A4, 2% for A5 and A6, 3% for A7 and above, one step higher for a High adjusted category (*proposed*). VITAL has ratings these settings cannot hold: see [how to record yours](vital-mapping.md#recording-your-vital-risk-rating) | **[FILL]** |
    | `planted_rate` | Replaces that share. At most `0.5` | **[FILL]** |
    | `gxp` | `true`, the default, needs two approvers for each planted error. `false` needs one | **[FILL]** |
    | `feedback` | Whether reviewers learn outcomes at once or in batches. Your application must ask for the feedback and show it | **[FILL]** |

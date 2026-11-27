@@ -32,6 +32,8 @@ These concern reporting code that no release contains yet.
   qualification, and metric review with reviewer privacy rules; and
   `validation-pack/planted_records.py`, which lists who wrote, approved and retired each
   planted error, and who met a given one.
+- In the validation pack, a 21 CFR Part 11 control table and a mapping to the VITAL
+  framework's evidence categories. Both say what ReviewProof does not provide.
 - Settings: optional `reporting` and `alerts` sections, and per-queue `thresholds`.
 - Qualification sessions: planted errors and correct items, a pass mark fixed in advance,
   and each reviewer's status for the current version of the AI system (`rp qualify`).
