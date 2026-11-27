@@ -83,6 +83,7 @@ One YAML or JSON file per planted error.
 | `payload` | Yes | The whole defective item, exactly as a reviewer will see it |
 | `correct_value` | No | What the defect field should have said. Recommended: it helps approvers, and ReviewProof checks that it really differs. |
 | `notes` | No | Anything approvers should know |
+| `purpose` | No | `live` (the default) or `qualification`. Qualification ones are used only in [qualification sessions](qualification.md), never in a live queue. |
 
 In YAML, **put dates, times and version numbers in quotes**. Without quotes, `2026-01-15` is read
 as a date object, not as text, and `1.10` becomes the number 1.1.

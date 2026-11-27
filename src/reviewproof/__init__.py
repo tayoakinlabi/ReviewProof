@@ -10,11 +10,13 @@ from reviewproof.errors import (
 )
 from reviewproof.feedback import Feedback, Outcome
 from reviewproof.guard import ExecutionResult
-from reviewproof.models import Decision, Item, Ticket
+from reviewproof.models import CallState, CallStatus, Decision, Item, Ticket
 
 __version__ = "0.1.0"
 
 __all__ = [
+    "CallState",
+    "CallStatus",
     "Decision",
     "ExecutionResult",
     "Feedback",

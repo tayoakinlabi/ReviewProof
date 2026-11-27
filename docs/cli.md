@@ -15,13 +15,18 @@ the current folder.
 | 2 | The command was refused or could not run |
 | 3 | `rp alerts --send` could not deliver an alert |
 
-`rp plant` and `rp system` act on planted errors or settings. Run them where reviewers cannot
+`rp plant`, `rp qualify` and `rp system` act on planted errors or settings. Run them where reviewers cannot
 see.
 
 ## `rp init`
 
 Create the two databases, once. It refuses to create a new file when only the other exists:
 restore both from the same backup.
+
+It also upgrades databases made by an earlier release, and says which it upgraded. Nothing
+else does: other commands that write refuse an old database, while `rp verify` and
+`rp report` read it without changing it. **Back up both databases first.** Earlier releases
+cannot open an upgraded database.
 
 Options: `--db`, `--planted`.
 
@@ -82,6 +87,32 @@ rp plant draft --queue deviation-triage --from items.json --item 2 \
   --mutator classification-flip --field classification --id PE-0013 --author me \
   --out PE-0013.yaml
 ```
+
+## `rp qualify start`
+
+Start a qualification session and write the reviewer's worksheet, which says nothing about
+which items are defective. See [qualifying reviewers](guides/qualification.md).
+
+Options: `--config`, `--db`, `--planted`, `--queue`, `--reviewer`, `--plan`, `--out` (never overwritten).
+
+## `rp qualify finish`
+
+Record the answers from a file, then score the session against the pass mark fixed at its
+start. A corrected file can be run again: answers already recorded are not changed.
+
+Options: `--config`, `--db`, `--planted`, `--queue`, `--answers`.
+
+## `rp qualify abandon`
+
+End a session early. It counts as not passed, and its planted errors count as used.
+
+Options: `--config`, `--db`, `--planted`, `--queue`.
+
+## `rp qualify status`
+
+Show whether a reviewer is qualified for the queue's current version of the AI system.
+
+Options: `--config`, `--db`, `--planted`, `--queue`, `--reviewer`.
 
 ## `rp report`
 

@@ -77,6 +77,22 @@ def require_reviewer(reviewer: Any) -> None:
         raise OversightError("reviewer must be a non-empty ID with no surrounding spaces")
 
 
+MAX_KEY_LENGTH = 500
+
+
+def require_key(key: Any) -> None:
+    if (
+        not isinstance(key, str)
+        or not key
+        or key != key.strip()
+        or len(key) > MAX_KEY_LENGTH
+        or any("\ud800" <= character <= "\udfff" for character in key)
+    ):
+        raise OversightError(
+            f"key must be text of 1 to {MAX_KEY_LENGTH} characters with no surrounding spaces"
+        )
+
+
 def plain_json(value: Any, what: str) -> dict[str, Any]:
     """A detached copy made of plain JSON types, however the caller built it."""
     if not isinstance(value, Mapping):

@@ -54,6 +54,21 @@ def read_entry(planted: sqlite3.Connection, item_id: str) -> RegistryEntry:
         raise StoreError("the item's registry row is damaged") from error
 
 
+def fingerprint_of(planted: sqlite3.Connection, planted_error_id: str) -> str:
+    """The fingerprint of a stored planted error as it is now."""
+    try:
+        row = planted.execute(
+            f"SELECT {', '.join(FINGERPRINT_COLUMNS)} FROM planted_errors "
+            "WHERE planted_error_id = ?",
+            (planted_error_id,),
+        ).fetchone()
+    except sqlite3.Error as error:
+        raise StoreError(f"cannot read the registry: {error}") from error
+    if row is None:
+        raise StoreError("the registry row refers to something that is gone")
+    return planted_fingerprint(dict(zip(FINGERPRINT_COLUMNS, row, strict=True)))
+
+
 def commitment_of(planted: sqlite3.Connection, entry: RegistryEntry) -> str:
     """What the log's commitment must equal if neither the row nor any planted error behind it
     has changed.
@@ -61,14 +76,7 @@ def commitment_of(planted: sqlite3.Connection, entry: RegistryEntry) -> str:
     try:
         fingerprint = None
         if entry.planted_error_id is not None:
-            row = planted.execute(
-                f"SELECT {', '.join(FINGERPRINT_COLUMNS)} FROM planted_errors "
-                "WHERE planted_error_id = ?",
-                (entry.planted_error_id,),
-            ).fetchone()
-            if row is None:
-                raise StoreError("the registry row refers to something that is gone")
-            fingerprint = planted_fingerprint(dict(zip(FINGERPRINT_COLUMNS, row, strict=True)))
+            fingerprint = fingerprint_of(planted, entry.planted_error_id)
         return planted_commitment(
             entry.item_id,
             entry.kind,
@@ -77,10 +85,52 @@ def commitment_of(planted: sqlite3.Connection, entry: RegistryEntry) -> str:
             entry.salt,
             fingerprint,
         )
-    except sqlite3.Error as error:
-        raise StoreError(f"cannot read the registry: {error}") from error
     except (ValueError, TypeError) as error:
         raise StoreError("the item's registry row is damaged") from error
+
+
+def add_key(
+    planted: sqlite3.Connection,
+    queue: str,
+    key: str,
+    item_id: str,
+    seed: bytes,
+    reviewer: str | None,
+) -> None:
+    """Note which key an item was submitted under. Written before the item is in the log."""
+    try:
+        planted.execute(
+            "INSERT INTO submission_keys (item_id, queue_id, submission_key, seed, reviewer) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (item_id, queue, key, seed, reviewer),
+        )
+    except sqlite3.Error as error:
+        raise StoreError(f"cannot write the item registry: {error}") from error
+
+
+def key_rows(planted: sqlite3.Connection, queue: str, key: str) -> list[tuple[str, bytes, str]]:
+    """(item_id, seed, reviewer) for each row under a key, oldest first."""
+    try:
+        rows = planted.execute(
+            "SELECT item_id, seed, reviewer FROM submission_keys "
+            "WHERE queue_id = ? AND submission_key = ? ORDER BY rowid",
+            (queue, key),
+        ).fetchall()
+    except sqlite3.Error as error:
+        raise StoreError(f"cannot read the item registry: {error}") from error
+    return [(row[0], row[1], row[2]) for row in rows]
+
+
+def key_of(planted: sqlite3.Connection, queue: str, item_id: str) -> str | None:
+    """The key an item was submitted under, if it had one."""
+    try:
+        row = planted.execute(
+            "SELECT submission_key FROM submission_keys WHERE item_id = ? AND queue_id = ?",
+            (item_id, queue),
+        ).fetchone()
+    except sqlite3.Error as error:
+        raise StoreError(f"cannot read the item registry: {error}") from error
+    return None if row is None else row[0]
 
 
 def add_real_item(

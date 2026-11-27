@@ -14,13 +14,26 @@ database format. Each release says what a validated user would need to retest.
 - Commands: `rp init`, `rp system register`, `rp plant`, `rp report` and `rp alerts`.
 - A reviewer simulator, and an end-to-end demo with synthetic data.
 - Settings: optional `reporting` and `alerts` sections, and per-queue `thresholds`.
+- Qualification sessions: planted errors and correct items, a pass mark fixed in advance,
+  and each reviewer's status for the current version of the AI system (`rp qualify`).
+- For agents that pause and resume: `submit(..., key=...)` is safe to repeat, and
+  `settle()`, `call_status()` and `execute_call()` connect a decision to the paused call.
+  `reviewproof.adapters.tool.ReviewedTool` wraps a write tool. See
+  [ADR-005](docs/adr/0005-adapters.md). Adapters for particular agent libraries are not
+  included yet.
 
 ### Change impact
 
-The database format, event log, gate and execution guard are unchanged from 0.1.0, so
-existing databases work. A validated user would need to test the new figures and reports
-against their intended use before relying on them. The definitions are in
-[ADR-004](docs/adr/0004-metrics-and-reports.md).
+**This release needs database schema version 2.** It refuses to write to databases made by
+0.1.0 until you run `rp init`, so installing it changes nothing in your records by itself.
+**Back up both databases first.** The upgrade rebuilds the log table: stored values and
+hashes do not change, and heads exported by 0.1.0 still match. After it, 0.1.0 cannot open
+the databases. A validated user should run `rp verify` with a previously exported head
+before and after, and retest the gate, guard and log.
+
+The new figures, reports and qualification results need testing against their intended
+use. See [ADR-004](docs/adr/0004-metrics-and-reports.md) and
+[ADR-006](docs/adr/0006-qualification.md).
 
 ## 0.1.0 (2026-11-26)
 

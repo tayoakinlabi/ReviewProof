@@ -158,6 +158,9 @@ def test_fresh_databases_have_their_tables(oversight, planted):
         "gate_shortfalls",
         "review_context",
         "traces",
+        "qualification_items",
+        "qualification_judgments",
+        "submission_keys",
     }
 
 
@@ -190,7 +193,7 @@ def test_create_and_open_are_repeatable(tmp_path, create, reopen):
     create(path).close()
     create(path).close()
     with closing(reopen(path)) as db:
-        assert db.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == 1
+        assert db.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == 2
     assert path.is_file()
 
 
@@ -249,9 +252,11 @@ def test_a_later_migration_is_applied_to_an_existing_database(tmp_path, monkeypa
     create_oversight_db(path).close()
     later = (*schema.OVERSIGHT_MIGRATIONS, ["CREATE TABLE added_later (x)"])
     monkeypatch.setattr(schema, "OVERSIGHT_MIGRATIONS", later)
-    with closing(open_oversight_db(path)) as db:
+    with pytest.raises(StoreError, match="rp init"):
+        open_oversight_db(path)
+    with closing(create_oversight_db(path, upgrade=True)) as db:
         assert "added_later" in tables(db)
-        assert db.execute("SELECT MAX(version) FROM schema_version").fetchone()[0] == 2
+        assert db.execute("SELECT MAX(version) FROM schema_version").fetchone()[0] == len(later)
 
 
 def test_a_failed_migration_changes_nothing(tmp_path, monkeypatch):
@@ -259,8 +264,8 @@ def test_a_failed_migration_changes_nothing(tmp_path, monkeypatch):
     create_oversight_db(path).close()
     broken = (*schema.OVERSIGHT_MIGRATIONS, ["CREATE TABLE half (x)", "NOT SQL"])
     monkeypatch.setattr(schema, "OVERSIGHT_MIGRATIONS", broken)
-    with pytest.raises(StoreError):
-        open_oversight_db(path)
+    with pytest.raises(StoreError, match="cannot open"):
+        create_oversight_db(path, upgrade=True)
     monkeypatch.undo()
     with closing(open_oversight_db(path)) as db:
         assert "half" not in tables(db)

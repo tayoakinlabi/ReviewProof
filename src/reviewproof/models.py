@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import secrets
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -39,6 +42,20 @@ class EventType(str, Enum):
     BLOCKED = "blocked"
     WITHDRAWN = "withdrawn"
     FEEDBACK_SENT = "feedback_sent"
+    QUALIFICATION_STARTED = "qualification_started"
+    QUALIFICATION_JUDGED = "qualification_judged"
+    QUALIFICATION_SHOWN = "qualification_shown"
+    QUALIFICATION_ANSWERED = "qualification_answered"
+    QUALIFICATION_FINISHED = "qualification_finished"
+
+
+class CallState(str, Enum):
+    """Where the real action behind a submission key stands (ADR-005)."""
+
+    WAITING = "waiting"
+    APPROVE = "approve"
+    EDIT = "edit"
+    REJECT = "reject"
 
 
 class ItemKind(str, Enum):
@@ -46,6 +63,13 @@ class ItemKind(str, Enum):
 
     REAL = "real"
     PLANTED = "planted"
+
+
+class Purpose(str, Enum):
+    """What a planted error is for. The two pools never mix."""
+
+    LIVE = "live"
+    QUALIFICATION = "qualification"
 
 
 class QualificationStatus(str, Enum):
@@ -72,9 +96,23 @@ def new_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def derive_token(seed: bytes, item_id: str) -> str:
+    """A keyed submission's token, which can be rebuilt (ADR-005). It looks like any other."""
+    digest = hmac.new(seed, item_id.encode("utf-8"), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
 def new_item_id() -> str:
     """A random item ID. It carries no order, time or kind."""
     return secrets.token_hex(16)
+
+
+@dataclass(frozen=True)
+class CallStatus:
+    """The state of one proposed action. For server code only: never show it to a reviewer."""
+
+    key: str
+    state: CallState
 
 
 @dataclass(frozen=True)

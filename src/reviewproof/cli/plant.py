@@ -131,8 +131,9 @@ def _describe(library: PlantedLibrary, config: Config, planted: PlantedError) ->
     queue = config.queues.get(planted.queue)
     needed = approvals_needed(True if queue is None else queue.gxp)
     status = library.status(planted).value.replace("_", " ")
+    pool = "" if planted.purpose.value == "live" else f"  [{planted.purpose.value}]"
     return (
-        f"{planted.planted_error_id}  {planted.queue}  {planted.defect_class.value}  "
+        f"{planted.planted_error_id}  {planted.queue}  {planted.defect_class.value}{pool}  "
         f"{status}  ({len(planted.approvers)} of {needed} approvals)"
     )
 

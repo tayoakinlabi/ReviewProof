@@ -13,11 +13,11 @@ def test_the_python_in_the_integration_guide_runs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     text = GUIDE.read_text(encoding="utf-8")
     snippets = re.findall(r"^```python\n(.*?)^```$", text, flags=re.MULTILINE | re.DOTALL)
-    assert len(snippets) == 2
+    assert len(snippets) == 3
     namespace = {}
     for snippet in snippets:
         exec(compile(snippet, str(GUIDE), "exec"), namespace)  # noqa: S102
-    assert namespace["written"] == ["QMS-301"]
+    assert namespace["written"] == ["QMS-301", "QMS-302"]
 
 
 def test_the_integration_guide_links_work():

@@ -1,3 +1,4 @@
+import socket
 from contextlib import closing
 
 import pytest
@@ -68,3 +69,26 @@ def no_proxy(monkeypatch):
     for name in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+
+
+@pytest.fixture
+def offline(monkeypatch):
+    """Fail if anything tries to reach another computer."""
+    attempts = []
+    connect = socket.socket.connect
+
+    def guarded(self, address):
+        if isinstance(address, tuple) and address[0] in ("127.0.0.1", "::1"):
+            return connect(self, address)  # Windows needs this to start an event loop
+        attempts.append(address)
+        raise OSError("tests make no network calls")
+
+    def refused(*arguments, **keywords):
+        attempts.append(arguments)
+        raise OSError("tests make no network calls")
+
+    monkeypatch.setattr(socket.socket, "connect", guarded)
+    monkeypatch.setattr(socket, "getaddrinfo", refused)
+    monkeypatch.setattr(socket, "create_connection", refused)
+    yield
+    assert not attempts, f"something tried to connect: {attempts}"

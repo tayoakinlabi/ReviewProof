@@ -438,7 +438,7 @@ def test_every_command_and_option_is_documented():
     text = (DEMO.parents[1] / "docs" / "cli.md").read_text(encoding="utf-8")
     sections = {block.splitlines()[0].strip(): block for block in text.split("\n## ")[1:]}
     found = list(commands(build_parser()))
-    assert len(found) == 10
+    assert len(found) == 14
     for path, options in found:
         title = f"`rp {' '.join(path)}`"
         assert title in sections, title

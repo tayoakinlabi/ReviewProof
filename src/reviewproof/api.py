@@ -20,11 +20,18 @@ from reviewproof import adapters, feedback
 from reviewproof.canonical import utc_now
 from reviewproof.capture import context_digest, review_manifest, trace_digest, trace_records
 from reviewproof.config import Config, load_config
-from reviewproof.errors import OversightError, TransitionError, UnknownTokenError
+from reviewproof.errors import (
+    GuardError,
+    OversightError,
+    TransitionError,
+    UnknownTokenError,
+)
 from reviewproof.gate import Gate, GateStatus
 from reviewproof.guard import ExecutionResult, Executor, Guard
 from reviewproof.itemschema import ItemSchema, SchemaError
+from reviewproof.keyed import KeyedSubmissions
 from reviewproof.models import (
+    CallStatus,
     Decision,
     EventType,
     FeedbackTiming,
@@ -33,14 +40,29 @@ from reviewproof.models import (
     OversightContext,
     QualificationStatus,
     Ticket,
+    derive_token,
     new_item_id,
     new_token,
 )
 from reviewproof.planted import PlantedLibrary
-from reviewproof.records import ItemRef, Records, plain_json, require_reviewer, token_hash
+from reviewproof.qualification import Qualification
+from reviewproof.records import (
+    ItemRef,
+    Records,
+    plain_json,
+    require_key,
+    require_reviewer,
+    token_hash,
+)
 from reviewproof.store.commitments import field_hashes, new_salt, payload_hash, planted_commitment
 from reviewproof.store.eventlog import EventLog, item_events
-from reviewproof.store.registry import CONTEXT_COLUMNS, add_real_item, read_entry
+from reviewproof.store.registry import (
+    CONTEXT_COLUMNS,
+    add_key,
+    add_real_item,
+    key_of,
+    read_entry,
+)
 from reviewproof.store.schema import (
     StoreError,
     create_oversight_db,
@@ -60,8 +82,12 @@ __all__ = [
 ]
 
 
-def initialise(db: str | Path, planted_db: str | Path) -> None:
+def initialise(db: str | Path, planted_db: str | Path, *, upgrade: bool = False) -> None:
     """Create the two databases, once, when setting up a deployment.
+
+    Databases made by an earlier release are refused unless ``upgrade`` is true. Back up both
+    first: an upgrade cannot be undone. Do not pass ``upgrade=True`` from code that runs every
+    time your application starts.
 
     If exactly one of them exists, this refuses: replacing a lost file with an empty one would
     hide the loss. Restore it from a backup, as a pair with the other.
@@ -75,8 +101,8 @@ def initialise(db: str | Path, planted_db: str | Path) -> None:
             f"only one of the two databases exists; {missing} is missing. Restore both from "
             "the same backup."
         )
-    create_oversight_db(db).close()
-    create_planted_db(planted_db).close()
+    create_oversight_db(db, upgrade=upgrade).close()
+    create_planted_db(planted_db, upgrade=upgrade).close()
 
 
 @dataclass(frozen=True)
@@ -148,6 +174,10 @@ class Oversight:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
+    def qualification(self) -> Qualification:
+        """Qualification sessions for this queue: seeded-defect tests of a reviewer."""
+        return Qualification(self)
+
     @property
     def planted(self) -> PlantedLibrary:
         """The planted-error library, for QA administration. Not for the review application."""
@@ -159,14 +189,24 @@ class Oversight:
 
     # ------------------------------------------------------------- submit
 
-    def submit(self, item: Item, reviewer: str | None = None) -> list[Ticket]:
+    def submit(
+        self, item: Item, reviewer: str | None = None, key: str | None = None
+    ) -> list[Ticket]:
         """Register a real item. Returns its ticket, and sometimes a second one, in random order.
 
         Queue **every** ticket and show ``ticket.payload``. Pass ``reviewer`` only if all of
         them will go to that person. Never show reviewers which items arrived together.
+
+        ``key`` names one proposed action, for code that may run again (ADR-005). Repeating a
+        call with the same key, target, payload and reviewer returns the same tickets, records
+        nothing and does not ask the gate again; the first call's trace is the one kept. Queue
+        the tickets after **every** call, ignoring any token your queue already has. The same
+        key with anything else is refused.
         """
         if reviewer is not None:
             require_reviewer(reviewer)
+        if key is not None:
+            require_key(key)
         payload = plain_json(item.payload, "payload")
         payload_salt = new_salt()
         trace = trace_records(item.trace, payload_salt)
@@ -177,6 +217,10 @@ class Oversight:
         # The log's write lock is taken first. If the log is unavailable, the submission fails
         # here, before the gate has used up a planted error.
         with self._log.transaction():
+            if key is not None:
+                earlier = self._keys().replay(key, item.target_id, payload, reviewer, schema)
+                if earlier is not None:
+                    return earlier
             real = self._register_real(item.target_id, payload, payload_salt, trace)
             entries = [real]
             # Without the schema, fields could not be ordered alike, so nothing is planted.
@@ -185,6 +229,8 @@ class Oversight:
                 entries.append(planted)
             # The order of rows and events must not show which of a pair is which.
             self._rng.shuffle(entries)
+            if key is not None:
+                entries = self._keep_key(key, reviewer, entries)
             now = self._clock()
             for entry in entries:
                 self._write(entry, schema, now)
@@ -192,6 +238,16 @@ class Oversight:
             Ticket(entry.token, schema.arrange(entry.payload) if schema else entry.payload)
             for entry in entries
         ]
+
+    def _keep_key(
+        self, key: str, reviewer: str | None, entries: list[_Submission]
+    ) -> list[_Submission]:
+        """Give each item a token that can be rebuilt, and note the key."""
+        seed = secrets.token_bytes(32)
+        keyed = [replace(e, token=derive_token(seed, e.item_id)) for e in entries]
+        for entry in keyed:
+            add_key(self._planted, self._queue.name, key, entry.item_id, seed, reviewer)
+        return keyed
 
     def _register_real(
         self,
@@ -394,8 +450,78 @@ class Oversight:
         repeat) and errors raised by your executor (it may have run in part). An item is never
         executed twice.
         """
-        guard = Guard(self._records, self._planted, self.planted, self._config, self._files)
-        return guard.execute(token, payload, executor)
+        return self._guard().execute(token, payload, executor)
+
+    # ------------------------------------------------------------- paused agents (ADR-005)
+
+    def settle(self, token: str, payload: Mapping[str, Any] | None = None) -> CallStatus:
+        """Call after **every** decision on a keyed item, the same way for every ticket.
+
+        Pass the payload as decided: the ticket's payload for an approval, the edited one for
+        an edit. A rejection needs none. For a planted item this does what ``execute()`` does,
+        without anything to run. Repeating it is harmless.
+
+        Returns the state of the **real** action under the same key. Resume the paused call
+        once it is no longer ``waiting``. It tells your server code nothing that
+        ``execute()`` would not, and **none of it may reach a reviewer**.
+        """
+        with self._log.transaction():
+            item = self._records.find(token)
+            key = key_of(self._planted, self._queue.name, item.item_id)
+            if key is None:
+                raise OversightError("this item was not submitted with a key; use execute()")
+            decision = self._decision_on(item.item_id)
+        if decision is not Decision.REJECT:
+            if payload is None:
+                raise OversightError("an approval or edit needs the payload as decided")
+            self._guard().settle(token, payload)
+        return self.call_status(key)
+
+    def call_status(self, key: str) -> CallStatus:
+        """Whether the real action under ``key`` is still waiting, or how it was decided."""
+        require_key(key)
+        with self._log.transaction():
+            return self._keys().status(key)
+
+    def execute_call(
+        self, key: str, payload: Mapping[str, Any], executor: Executor
+    ) -> ExecutionResult:
+        """``execute()`` for the real action under ``key``, with every one of its checks.
+
+        This is what a resumed agent call uses. Nothing the agent library says matters here:
+        without a recorded approval or edit of exactly this payload, nothing runs, and an
+        action never runs twice.
+        """
+        require_key(key)
+        try:
+            with self._log.transaction():
+                token = self._keys().real_token(key)
+        except OversightError:
+            raise
+        except Exception as error:  # whatever went wrong, nothing runs
+            name = type(error).__name__
+            _log.error("a guard check failed in queue %r (%s)", self._queue.name, name)
+            raise GuardError(
+                "A safety check could not be completed. Nothing was executed. Run rp verify."
+            ) from None
+        return self.execute(token, payload, executor)
+
+    def _decision_on(self, item_id: str) -> Decision:
+        decisions = [
+            e for e in item_events(self._db, item_id) if e["type"] == EventType.DECIDED.value
+        ]
+        if not decisions:
+            raise TransitionError("this item has no decision")
+        try:
+            return Decision(decisions[0]["decision"])
+        except ValueError as error:
+            raise StoreError("the log holds an unknown decision; run rp verify") from error
+
+    def _keys(self) -> KeyedSubmissions:
+        return KeyedSubmissions(self._records, self._planted, self.planted)
+
+    def _guard(self) -> Guard:
+        return Guard(self._records, self._planted, self.planted, self._config, self._files)
 
     def feedback(self, reviewer: str, batch: bool = False) -> list[feedback.Feedback]:
         """Outcomes of planted errors ``reviewer`` has decided on, each delivered once.

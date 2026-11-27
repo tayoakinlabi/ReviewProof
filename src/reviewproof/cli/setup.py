@@ -9,7 +9,7 @@ from reviewproof.api import Oversight, initialise
 from reviewproof.cli import common
 from reviewproof.config import ConfigError, load_config
 from reviewproof.errors import OversightError
-from reviewproof.store.schema import StoreError
+from reviewproof.store.schema import StoreError, needs_upgrade
 
 _ERRORS = (ConfigError, StoreError, OversightError, OSError, ValueError)
 
@@ -17,9 +17,10 @@ _ERRORS = (ConfigError, StoreError, OversightError, OSError, ValueError)
 def add_parsers(subparsers: argparse._SubParsersAction) -> None:
     init = subparsers.add_parser(
         "init",
-        help="create the two databases, once",
-        description="Create the databases when setting up. Refuses to replace one that has "
-        "been lost: restore both from the same backup.",
+        help="create the two databases, or upgrade them",
+        description="Create the databases when setting up, or upgrade ones made by an "
+        "earlier release. Back up both before an upgrade: it cannot be undone. Refuses to "
+        "replace one that has been lost: restore both from the same backup.",
         epilog="Exit status: 0 done, 2 could not run.",
     )
     common.add_databases(init)
@@ -49,10 +50,17 @@ def add_parsers(subparsers: argparse._SubParsersAction) -> None:
 
 def run_init(args: argparse.Namespace) -> int:
     try:
-        initialise(args.db, args.planted)
+        upgraded = [
+            path
+            for path, component in ((args.db, "oversight"), (args.planted, "planted"))
+            if needs_upgrade(path, component)
+        ]
+        initialise(args.db, args.planted, upgrade=True)
     except _ERRORS as error:
         print(f"error: {error}", file=sys.stderr)
         return common.EXIT_ERROR
+    for path in upgraded:
+        print(f"Upgraded {path}. Earlier releases can no longer open it.")
     print(f"Ready: {args.db} and {args.planted}.")
     print(f"Give write access to {args.planted} only to the application and QA administrators.")
     return common.EXIT_OK

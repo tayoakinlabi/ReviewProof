@@ -24,7 +24,7 @@ from typing import Any
 from reviewproof.canonical import canonical_json, utc_now
 from reviewproof.config import Config, QueueConfig
 from reviewproof.itemschema import ItemSchema, SchemaError, json_equal
-from reviewproof.models import DefectClass
+from reviewproof.models import DefectClass, Purpose
 from reviewproof.store.schema import StoreError
 from reviewproof.strictload import LoadError, load_file
 
@@ -39,7 +39,7 @@ _REQUIRED = frozenset(
         "payload",
     }
 )
-_OPTIONAL = frozenset({"correct_value", "notes"})
+_OPTIONAL = frozenset({"correct_value", "notes", "purpose"})
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 _COLUMNS = (
@@ -61,6 +61,7 @@ _COLUMNS = (
     "retired_at",
     "retired_by",
     "retire_reason",
+    "purpose",
 )
 
 
@@ -106,6 +107,8 @@ class PlantedError:
     retired_at: str | None = None
     retired_by: str | None = None
     retire_reason: str | None = None
+    #: A live planted error goes into review queues; a qualification one only into sessions.
+    purpose: Purpose = Purpose.LIVE
 
     @property
     def approvers(self) -> frozenset[str]:
@@ -213,6 +216,11 @@ class PlantedLibrary:
         author = data["author"]
         if not _is_text(author) or not _person(author):
             raise PlantedImportError("author must be a non-empty name or ID")
+        try:
+            purpose = Purpose(data.get("purpose", Purpose.LIVE.value))
+        except ValueError:
+            allowed = " or ".join(member.value for member in Purpose)
+            raise PlantedImportError(f"purpose must be {allowed}") from None
         notes = data.get("notes")
         if notes is not None and not isinstance(notes, str):
             raise PlantedImportError("notes must be text")
@@ -242,6 +250,7 @@ class PlantedLibrary:
             "correct_value": correct_text,
             "notes": notes,
             "author": author.strip(),
+            "purpose": purpose.value,
         }
 
     def _content_problems(
@@ -367,13 +376,18 @@ class PlantedLibrary:
             planted.correct_value,
         )
 
-    def available(self, queue: str) -> list[PlantedError]:
-        """The only planted errors that may be injected into ``queue``.
+    def available(self, queue: str, purpose: Purpose = Purpose.LIVE) -> list[PlantedError]:
+        """The only planted errors that may be injected into ``queue``, or, for
+        ``Purpose.QUALIFICATION``, used in its qualification sessions.
 
         Approved under the queue's current rules, not retired, and still matching its schema.
         The approval rules are checked here as well as by the database.
         """
-        return [planted for planted in self._approved(queue) if not self.problems(planted)]
+        return [
+            planted
+            for planted in self._approved(queue)
+            if planted.purpose is purpose and not self.problems(planted)
+        ]
 
     def stale(self, queue: str) -> dict[str, list[str]]:
         """Approved planted errors that are held back, for example after a schema change."""
@@ -389,8 +403,12 @@ class PlantedLibrary:
 
     def _select(self, tail: str, arguments: tuple) -> list[sqlite3.Row]:
         try:
+            columns = _COLUMNS
+            if not self._has_purpose():
+                # A database not yet upgraded, opened read-only: everything in it is live.
+                columns = (*_COLUMNS[:-1], f"'{Purpose.LIVE.value}' AS purpose")
             return self._db.execute(
-                f"SELECT {', '.join(_COLUMNS)} FROM planted_errors {tail}", arguments
+                f"SELECT {', '.join(columns)} FROM planted_errors {tail}", arguments
             ).fetchall()
         except sqlite3.Error as error:
             raise StoreError(f"cannot read the planted-error library: {error}") from error
@@ -399,12 +417,18 @@ class PlantedLibrary:
         try:
             return (
                 self._db.execute(
-                    "SELECT 1 FROM item_registry WHERE planted_error_id = ?", (planted_error_id,)
+                    "SELECT 1 FROM item_registry WHERE planted_error_id = ?1 UNION ALL "
+                    "SELECT 1 FROM qualification_items WHERE planted_error_id = ?1",
+                    (planted_error_id,),
                 ).fetchone()
                 is not None
             )
         except sqlite3.Error as error:
             raise StoreError(f"cannot read the item registry: {error}") from error
+
+    def _has_purpose(self) -> bool:
+        info = self._db.execute("PRAGMA table_info(planted_errors)").fetchall()
+        return not info or any(row[1] == "purpose" for row in info)
 
     def _row(self, planted_error_id: str) -> sqlite3.Row | None:
         rows = self._select("WHERE planted_error_id = ?", (planted_error_id,))
@@ -435,6 +459,7 @@ def _from_row(row: sqlite3.Row) -> PlantedError:
         values["has_correct_value"] = correct is not None
         values["correct_value"] = None if correct is None else json.loads(correct)
         values["defect_class"] = DefectClass(values["defect_class"])
+        values["purpose"] = Purpose(values["purpose"])
     except (ValueError, TypeError) as error:
         raise StoreError(f"planted error {values['planted_error_id']!r} is damaged") from error
     values["queue"] = values.pop("queue_id")

@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-25
 - **Amended:** 2026-11-26 (target IDs, token hashes, database protections; the gate's data;
-  traces and review context moved to the restricted database)
+  traces and review context moved to the restricted database; when migrations run)
 
 ## Context
 
@@ -54,6 +54,7 @@ their screens showed, would give away which were planted. Their rows cannot be c
   `gate_shortfalls`. A planted error's approvals cannot change once the registry shows it
   has been used.
 - Schema changes are forward-only migrations tracked in a `schema_version` table in each file.
+  They run only when asked for ([ADR-006](0006-qualification.md)).
 - **Runtime dependency: PyYAML only.** The CLI uses `argparse`, reports use the standard library,
   alerts use `smtplib` and `urllib`. LangGraph is an optional extra.
 - Item schemas are JSON Schema files. At runtime they are checked by a **small built-in validator**

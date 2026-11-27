@@ -36,6 +36,20 @@ initialise("oversight.db", "planted.db")
 If one of the two files is ever lost, restore **both** from the same backup. `initialise()`
 refuses to create a new file beside an old one.
 
+### After upgrading ReviewProof
+
+If a release changes the database format, ReviewProof refuses to write to your old
+databases until you upgrade them. Stop the application, **back up both databases**, then
+run this once, as a deliberate step under your change control:
+
+```bash
+rp init --db oversight.db --planted planted.db
+```
+
+An upgrade cannot be undone: earlier releases cannot open an upgraded database. In Python,
+`initialise(..., upgrade=True)` does the same. Do not put that in code that runs every time
+your application starts.
+
 QA then writes and approves planted errors, using the
 [authoring guide](writing-planted-errors.md). The settings file is shown in the
 [demo](../../examples/deviation_triage/reviewproof.yaml).
@@ -79,11 +93,9 @@ with Oversight("examples/deviation_triage/reviewproof.yaml", "deviation-triage")
 assert written == ["QMS-301"]
 ```
 
-- **Call `submit()` only once for each proposal.** Every call creates a new item and another
-  chance of a planted error. Some workflow and agent frameworks run code again when they
-  resume: [LangGraph](https://docs.langchain.com/oss/python/langgraph/interrupts), for
-  example, restarts a paused node from its beginning. Call `submit()` in a step that has
-  finished before the pause, not in the step that waits.
+- **Without a `key`, call `submit()` only once for each proposal.** Every such call creates
+  a new item and another chance of a planted error. If your code can run again, as agent
+  libraries do when they resume, see [agents that pause](#agents-that-pause-and-resume).
 - Keep each `ticket.token` with the item in your queue. It is a secret: do not log it.
 - For an edit, pass the whole edited item as `final_payload` to `decided()`, then the same item
   to `execute()`. ReviewProof works out which fields changed.
@@ -114,6 +126,87 @@ write needs a person to check it and, if appropriate, make the change in your ta
 under your own procedures. Retry temporary network errors **inside** your executor, if your
 target system makes that safe. A `GuardError` caused by an outage or a changed payload does not
 use up the one attempt.
+
+## Agents that pause and resume
+
+Agent libraries pause before a tool runs and resume it later. Between the two they may run code
+again, resume twice or approve by themselves. So **the library's approval only wakes the tool;
+ReviewProof decides what may be written.** Adapters for particular libraries are not released
+yet. `ReviewedTool` is the part they will share, and you can use it directly:
+
+```python
+from reviewproof import CallState
+from reviewproof.adapters.tool import ReviewedTool
+
+settings = "examples/deviation_triage/reviewproof.yaml"
+review_queue = {}
+
+
+def save_record(record_id, **fields):  # your write function, which the agent must never get
+    written.append(record_id)
+    return "saved"
+
+
+tool = ReviewedTool(
+    lambda: Oversight(settings, "deviation-triage"),  # a new one for each use
+    save_record,
+    target_argument="record_id",  # every other argument is the item that is reviewed
+    enqueue=lambda ticket: review_queue.setdefault(ticket.token, ticket.payload),
+)
+arguments = {**proposal, "deviation_id": "DEV-2026-0302", "record_id": "QMS-302"}
+key = "run-7/call-1"  # your run or thread ID, and the library's tool-call ID
+
+# 1. Before the agent pauses.
+tool.submit(key, arguments)
+
+# 2. In your review application, after EVERY decision.
+with Oversight(settings, "deviation-triage") as oversight:
+    for token, payload in review_queue.items():
+        oversight.shown(token, reviewer="r-104")
+        oversight.decided(token, reviewer="r-104", decision="approve")
+        status = oversight.settle(token, payload)
+
+# 3. When status.state is no longer waiting, resume the agent. The resumed tool does this.
+assert status.state is CallState.APPROVE
+outcome = tool.run(key, arguments)  # give outcome.reply to the agent
+assert outcome.reply == "saved"
+assert written == ["QMS-301", "QMS-302"]
+```
+
+- **Keys.** A key names one proposed action and must be the same each time that code runs. The
+  same key with a different target, content or reviewer is refused, so build the proposal
+  before the step that pauses, not inside it.
+- **`enqueue` is called on every `submit()`**, including repeats. It must ignore a token your
+  queue already has.
+- **Call `settle()` after every decision**, with the payload as decided (a rejection needs
+  none). It handles planted items and returns the state of the real action. It, and
+  `call_status(key)`, are for your server code only.
+- **Resume each paused call once.** Both decisions of a pair can report that the real action is
+  decided, so keep a note of the keys you have resumed. A second resume writes nothing.
+- **Edits.** ReviewProof stores no content. Give `ReviewedTool` an `approved_payload(key,
+  proposal)` function that returns the reviewer's version from your review application.
+  Without it, an edited action is refused and nothing runs.
+- **Let every error from `run()` stop the agent's run.** Never turn one into a tool result: the
+  agent could try again, after a write that may have partly happened. Some libraries do this by
+  default, so check yours.
+- **Build the review screen only from tickets,** never from the library's approval request.
+  Approval inside the agent's own chat is not supported.
+- **Check what your agent library records or sends.** Some send tracing data to their vendor by
+  default.
+
+### What reviewers must not see
+
+A planted item exists only in your review queue. While items are waiting, a reviewer **must
+not be able to watch** the agent's traces, saved state or logs, the target system as it
+changes, or **whether the agent continues after a decision**. Any of these can show which item
+is planted. So the person using an agent cannot be the one who reviews its actions as it works.
+ReviewProof cannot enforce this: your design and your procedures must.
+
+## Qualification sessions
+
+`oversight.qualification()` runs seeded-defect sessions away from the live queue. Show each
+session item on your review screen as you would a live one, and never call your executor for
+it. See [qualifying reviewers](qualification.md).
 
 ## Feedback to reviewers
 

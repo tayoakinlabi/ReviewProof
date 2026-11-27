@@ -67,6 +67,39 @@ def planted_commitment(
     return sha256_hex(canonical_json(record))
 
 
+def qualification_commitment(
+    item_id: str,
+    session_id: str,
+    position: int,
+    planted_error_id: str | None,
+    payload_text: str,
+    salt: bytes,
+    fingerprint: str | None,
+) -> str:
+    """Fix one item of a qualification session in the log, with its place in the answer key,
+    without revealing whether it is defective.
+    """
+    _check_salt(salt)
+    if (planted_error_id is None) != (fingerprint is None):
+        raise ValueError("a defective item needs a fingerprint, and a correct one has none")
+    record = [
+        "qualification-item",
+        item_id,
+        session_id,
+        position,
+        planted_error_id,
+        payload_text,
+        salt.hex(),
+        fingerprint,
+    ]
+    return sha256_hex(canonical_json(record))
+
+
+def judgment_hash(judgment_text: str, salt: bytes) -> str:
+    _check_salt(salt)
+    return sha256_hex(canonical_json(["judgment", judgment_text, salt.hex()]))
+
+
 def payload_hash(payload: Mapping[str, Any], payload_salt: bytes) -> str:
     """Hash an item's payload with that item's own salt.
 

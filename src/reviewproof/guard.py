@@ -100,14 +100,25 @@ class Guard:
         self._last_check(token, authorised.target_id)
         return self._run(authorised, approved, executor)
 
+    def settle(self, token: str, payload: Mapping[str, Any]) -> None:
+        """For an approved or edited item whose executor is somewhere else (ADR-005).
+
+        Checks the payload as ``execute()`` would, for either kind of item. For anything but a
+        real item it then records what ``execute()`` records. It has nothing to call, and
+        repeating it changes nothing. A real item is left for its one execution.
+        """
+        self._authorise(token, plain_json(payload, "payload"), settling=True)
+
     # ------------------------------------------------------------- checks
 
-    def _authorise(self, token: str, payload: dict[str, Any]) -> _Authorised:
+    def _authorise(
+        self, token: str, payload: dict[str, Any], settling: bool = False
+    ) -> _Authorised:
         """Run the checks and record the request, atomically."""
         try:
             self._require_files()
             with self._records.log.transaction():
-                return self._check_and_record(token, payload)
+                return self._check_and_record(token, payload, settling)
         except (UnknownTokenError, TransitionError):
             raise
         except _Refused as refusal:
@@ -116,13 +127,14 @@ class Guard:
         except Exception as error:
             raise self._failed(token, error) from None
 
-    def _check_and_record(self, token: str, payload: dict[str, Any]) -> _Authorised:
+    def _check_and_record(self, token: str, payload: dict[str, Any], settling: bool) -> _Authorised:
         item = self._records.find(token)
         events: dict[str, list[dict[str, Any]]] = {}
         for event in item_events(self._records.db, item.item_id):
             events.setdefault(event["type"], []).append(event)
 
-        if EventType.EXECUTE_REQUESTED.value in events:
+        requested = EventType.EXECUTE_REQUESTED.value in events
+        if requested and not settling:
             raise TransitionError("execution has already been requested for this item")
         decisions = events.get(EventType.DECIDED.value, [])
         if not decisions:
@@ -154,6 +166,10 @@ class Guard:
         reviewer = decision["reviewer_id"]
         # The context the item was submitted under, taken from the log.
         item = ItemRef(item.item_id, submitted["system_id"])
+        authorised = _Authorised(item, entry.kind, entry.target_id, reviewer)
+        # Settling records nothing for a real item: its one execution is still to come.
+        if settling and (requested or entry.kind is ItemKind.REAL):
+            return authorised
         self._records.append(EventType.EXECUTE_REQUESTED, item, reviewer)
         if entry.kind is not ItemKind.REAL:
             planted = self._library.get(entry.planted_error_id)
@@ -163,7 +179,7 @@ class Guard:
             self._records.append(
                 EventType.WITHDRAWN, item, reviewer, data={"outcome": outcome.value}
             )
-        return _Authorised(item, entry.kind, entry.target_id, reviewer)
+        return authorised
 
     def _is_reserved(self, target_id: str) -> bool:
         """Is this a planted error's target ID? Does not depend on the item's recorded kind."""

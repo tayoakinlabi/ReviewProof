@@ -6,6 +6,8 @@
   are reused; a due planted error is released at once, not after a delay; ticket field order;
   edits are worked out by ReviewProof; execution results and failures, feedback, context
   changes, adapters, and what a review screen may show)
+- **Also amended by:** [ADR-005](0005-adapters.md) (repeating `submit` safely, three methods
+  for paused agents, and what server code can learn about a pair)
 
 ## Context
 

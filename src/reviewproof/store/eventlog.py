@@ -17,6 +17,7 @@ from typing import Any
 from reviewproof.canonical import canonical_json, sha256_hex, utc_now
 from reviewproof.capture import context_digest, trace_digest
 from reviewproof.models import Decision, EventType
+from reviewproof.store.qualification_check import check_qualification
 from reviewproof.store.registry import (
     CONTEXT_COLUMNS,
     TRACE_COLUMNS,
@@ -214,6 +215,28 @@ def item_events(connection: sqlite3.Connection, item_id: str) -> list[dict[str, 
     return checked
 
 
+def session_events(
+    connection: sqlite3.Connection, queue: str, session_id: str
+) -> list[dict[str, Any]]:
+    """A qualification session's events in order, each checked like ``item_events``."""
+    try:
+        rows = connection.execute(
+            f"SELECT {', '.join(_COLUMNS)} FROM events WHERE queue_id = ? "
+            "AND type LIKE 'qualification_%' AND instr(data, ?) > 0 ORDER BY event_id",
+            (queue, json.dumps(session_id)),
+        ).fetchall()
+        checked = []
+        for row in rows:
+            record = dict(zip(_COLUMNS, row, strict=True))
+            _check_in_place(connection, record)
+            data = json.loads(record["data"])
+            if data.get("session_id") == session_id:
+                checked.append({**record, "data": data})
+    except sqlite3.Error as error:
+        raise StoreError(f"cannot read the event log: {error}") from error
+    return checked
+
+
 def _check_in_place(connection: sqlite3.Connection, record: Mapping[str, Any]) -> None:
     number = record["event_id"]
     previous = GENESIS_HASH
@@ -248,6 +271,7 @@ def verify(
     submitted: dict[str, tuple[int, Mapping[str, Any]]] = {}
     shown: list[tuple[int, str, str, Mapping[str, Any]]] = []
     duplicates: list[str] = []
+    qualification: list[dict[str, Any]] = []
     hash_at_expected = GENESIS_HASH if expected and expected.event_count == 0 else None
 
     # Text that is not UTF-8 is read as bytes, so the type check reports it at its own event.
@@ -271,6 +295,8 @@ def verify(
                     duplicates.append(f"event {count}: item {item_id} was submitted twice")
                 else:
                     submitted[item_id] = (count, json.loads(record["data"]))
+            elif record["type"].startswith("qualification_"):
+                qualification.append({**record, "data": json.loads(record["data"])})
             elif record["type"] == EventType.SHOWN.value:
                 data = json.loads(record["data"])
                 shown.append((count, record["item_id"], record["reviewer_id"], data))
@@ -295,6 +321,7 @@ def verify(
     registry_errors = list(duplicates)
     if planted is not None:
         registry_errors += _check_registry(planted, submitted, shown)
+        registry_errors += check_qualification(planted, qualification)
 
     return VerifyResult(
         head=Head(count, previous),

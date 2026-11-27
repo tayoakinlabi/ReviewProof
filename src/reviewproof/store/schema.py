@@ -1,6 +1,8 @@
 """Schema and migrations for ``oversight.db`` and ``planted.db`` (ADR-001).
 
 Migrations only go forward. Once a release contains a migration, never edit it: add a new one.
+An existing database is upgraded only when the caller asks for it, as ``rp init`` does. Opening
+one never changes its schema (ADR-006).
 
 The triggers stop changes made through normal SQL. Someone who can write to a database file can
 still drop them, which is why the event log is also hash-chained and its head hash exported.
@@ -9,7 +11,8 @@ still drop them, which is why the event log is also hash-chained and its head ha
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from contextlib import closing
 from pathlib import Path
 
 from reviewproof.canonical import utc_now
@@ -19,7 +22,8 @@ BUSY_TIMEOUT_MS = 5000
 #: ``prev_hash`` of the first event.
 GENESIS_HASH = "0" * 64
 
-Migration = Sequence[str]
+#: SQL statements, and checks that raise to undo the whole upgrade.
+Migration = Sequence[str | Callable[[sqlite3.Connection], None]]
 
 
 class StoreError(Exception):
@@ -55,6 +59,25 @@ def _frozen_rows(table: str, *keys: str) -> list[str]:
 
 
 # --------------------------------------------------------------------------- oversight.db
+
+_EVENT_TRIGGERS: list[str] = [
+    """CREATE TRIGGER events_no_update BEFORE UPDATE ON events
+    BEGIN SELECT RAISE(ABORT, 'events: the log is append-only'); END""",
+    """CREATE TRIGGER events_no_delete BEFORE DELETE ON events
+    BEGIN SELECT RAISE(ABORT, 'events: the log is append-only'); END""",
+    # An insert must extend the chain by exactly one link. This also refuses replacing inserts
+    # and stops two writers from forking the chain. It does not recompute the hash.
+    f"""CREATE TRIGGER events_extend_chain BEFORE INSERT ON events
+    BEGIN
+        SELECT RAISE(ABORT, 'events: event_id must be the next in sequence')
+        WHERE NEW.event_id IS NOT (SELECT IFNULL(MAX(event_id), 0) + 1 FROM events);
+        SELECT RAISE(ABORT, 'events: prev_hash must be the head hash')
+        WHERE NEW.prev_hash IS NOT IFNULL(
+            (SELECT hash FROM events ORDER BY event_id DESC LIMIT 1), '{GENESIS_HASH}');
+        SELECT RAISE(ABORT, 'events: hash is already in the log')
+        WHERE EXISTS (SELECT 1 FROM events WHERE hash = NEW.hash);
+    END""",
+]
 
 _OVERSIGHT_V1: Migration = [
     """CREATE TABLE systems (
@@ -117,22 +140,7 @@ _OVERSIGHT_V1: Migration = [
         hash            TEXT NOT NULL UNIQUE CHECK ({_is_hash("hash")})
     )""",
     "CREATE INDEX events_by_item ON events (item_id)",
-    """CREATE TRIGGER events_no_update BEFORE UPDATE ON events
-    BEGIN SELECT RAISE(ABORT, 'events: the log is append-only'); END""",
-    """CREATE TRIGGER events_no_delete BEFORE DELETE ON events
-    BEGIN SELECT RAISE(ABORT, 'events: the log is append-only'); END""",
-    # An insert must extend the chain by exactly one link. This also refuses replacing inserts
-    # and stops two writers from forking the chain. It does not recompute the hash.
-    f"""CREATE TRIGGER events_extend_chain BEFORE INSERT ON events
-    BEGIN
-        SELECT RAISE(ABORT, 'events: event_id must be the next in sequence')
-        WHERE NEW.event_id IS NOT (SELECT IFNULL(MAX(event_id), 0) + 1 FROM events);
-        SELECT RAISE(ABORT, 'events: prev_hash must be the head hash')
-        WHERE NEW.prev_hash IS NOT IFNULL(
-            (SELECT hash FROM events ORDER BY event_id DESC LIMIT 1), '{GENESIS_HASH}');
-        SELECT RAISE(ABORT, 'events: hash is already in the log')
-        WHERE EXISTS (SELECT 1 FROM events WHERE hash = NEW.hash);
-    END""",
+    *_EVENT_TRIGGERS,
     f"""CREATE TABLE qualifications (
         session_id   TEXT PRIMARY KEY NOT NULL,
         reviewer_id  TEXT NOT NULL REFERENCES reviewers (reviewer_id),
@@ -291,30 +299,136 @@ _PLANTED_V1: Migration = [
     )""",
 ]
 
-OVERSIGHT_MIGRATIONS: tuple[Migration, ...] = (_OVERSIGHT_V1,)
-PLANTED_MIGRATIONS: tuple[Migration, ...] = (_PLANTED_V1,)
+# --------------------------------------------------------------------------- version 2
+# Qualification sessions (ADR-006) and keyed submissions (ADR-005).
+
+_EVENT_COLUMNS = (
+    "event_id, format_version, type, ts_utc, system_id, queue_id, item_id, reviewer_id, "
+    "decision, data, prev_hash, hash"
+)
+
+
+def _check_log_copied(connection: sqlite3.Connection) -> None:
+    """The log is evidence: refuse the upgrade unless every row was copied exactly."""
+    old, new = (
+        connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        for table in ("events", "events_v2")
+    )
+    different = connection.execute(
+        f"SELECT COUNT(*) FROM (SELECT {_EVENT_COLUMNS} FROM events EXCEPT "
+        f"SELECT {_EVENT_COLUMNS} FROM events_v2)"
+    ).fetchone()[0]
+    if old != new or different:
+        raise StoreError("the event log was not copied exactly; the upgrade was undone")
+
+
+# SQLite cannot widen a CHECK constraint, so the log table is rebuilt. Every stored value and
+# hash is copied unchanged, so earlier exported heads still match.
+_OVERSIGHT_V2: Migration = [
+    f"""CREATE TABLE events_v2 (
+        event_id        INTEGER PRIMARY KEY NOT NULL,
+        format_version  INTEGER NOT NULL,
+        type            TEXT NOT NULL CHECK (type IN (
+            'context_registered', 'submitted', 'shown', 'opened', 'edited', 'decided',
+            'execute_requested', 'executed', 'execute_failed', 'blocked', 'withdrawn',
+            'feedback_sent', 'qualification_started', 'qualification_judged',
+            'qualification_shown', 'qualification_answered', 'qualification_finished')),
+        ts_utc          TEXT NOT NULL CHECK ({_is_timestamp("ts_utc")}),
+        system_id       TEXT NOT NULL,
+        queue_id        TEXT,
+        item_id         TEXT,
+        reviewer_id     TEXT,
+        decision        TEXT CHECK (decision IN ('approve', 'edit', 'reject')),
+        data            TEXT NOT NULL,
+        prev_hash       TEXT NOT NULL CHECK ({_is_hash("prev_hash")}),
+        hash            TEXT NOT NULL UNIQUE CHECK ({_is_hash("hash")})
+    )""",
+    f"INSERT INTO events_v2 ({_EVENT_COLUMNS}) "
+    f"SELECT {_EVENT_COLUMNS} FROM events ORDER BY event_id",
+    _check_log_copied,
+    "DROP TABLE events",
+    "ALTER TABLE events_v2 RENAME TO events",
+    "CREATE INDEX events_by_item ON events (item_id)",
+    *_EVENT_TRIGGERS,
+]
+
+_PLANTED_V2: Migration = [
+    # Qualification planted errors are a separate pool: what a reviewer learns in a session
+    # must not turn up in their live queue.
+    """ALTER TABLE planted_errors ADD COLUMN purpose TEXT NOT NULL DEFAULT 'live'
+        CHECK (purpose IN ('live', 'qualification'))""",
+    """CREATE TRIGGER planted_errors_purpose_fixed BEFORE UPDATE OF purpose ON planted_errors
+    BEGIN SELECT RAISE(ABORT, 'planted_errors: content cannot be changed; import a new one');
+    END""",
+    # The items of each session and, for the defective ones, which planted error: the key.
+    f"""CREATE TABLE qualification_items (
+        item_id           TEXT PRIMARY KEY NOT NULL,
+        session_id        TEXT NOT NULL,
+        position          INTEGER NOT NULL,
+        planted_error_id  TEXT REFERENCES planted_errors (planted_error_id),
+        token_hash        TEXT NOT NULL UNIQUE CHECK ({_is_hash("token_hash")}),
+        payload           TEXT NOT NULL,
+        salt              BLOB NOT NULL CHECK (length(salt) = 32),
+        UNIQUE (session_id, position)
+    )""",
+    *_frozen_rows("qualification_items", "item_id", "token_hash"),
+    "CREATE INDEX qualification_items_by_session ON qualification_items (session_id)",
+    """CREATE TRIGGER planted_errors_no_approval_after_qualification
+    BEFORE UPDATE OF approved_by, approved_at, second_approved_by, second_approved_at
+    ON planted_errors
+    WHEN EXISTS (SELECT 1 FROM qualification_items
+                 WHERE planted_error_id = OLD.planted_error_id)
+    BEGIN SELECT RAISE(ABORT, 'planted_errors: approvals cannot change after use'); END""",
+    # What a reviewer judged before seeing the AI's answer.
+    f"""CREATE TABLE qualification_judgments (
+        item_id   TEXT PRIMARY KEY NOT NULL REFERENCES qualification_items (item_id),
+        judgment  TEXT NOT NULL,
+        ts_utc    TEXT NOT NULL CHECK ({_is_timestamp("ts_utc")})
+    )""",
+    *_frozen_rows("qualification_judgments", "item_id"),
+    # Submissions with a key, for paused agents (ADR-005). Here and not in oversight.db,
+    # because a key groups the two items of a pair. The seed rebuilds the tokens.
+    """CREATE TABLE submission_keys (
+        item_id         TEXT PRIMARY KEY NOT NULL REFERENCES item_registry (item_id),
+        queue_id        TEXT NOT NULL,
+        submission_key  TEXT NOT NULL CHECK (submission_key <> ''),
+        seed            BLOB NOT NULL CHECK (length(seed) = 32),
+        reviewer        TEXT
+    )""",
+    *_frozen_rows("submission_keys", "item_id"),
+    "CREATE INDEX submission_keys_by_key ON submission_keys (queue_id, submission_key)",
+]
+
+OVERSIGHT_MIGRATIONS: tuple[Migration, ...] = (_OVERSIGHT_V1, _OVERSIGHT_V2)
+PLANTED_MIGRATIONS: tuple[Migration, ...] = (_PLANTED_V1, _PLANTED_V2)
 
 
 # --------------------------------------------------------------------------- opening
 
 
-def create_oversight_db(path: str | Path) -> sqlite3.Connection:
-    """Create ``oversight.db`` if needed, bring it up to date and open it."""
-    return _open(path, "oversight", OVERSIGHT_MIGRATIONS, create=True)
+def create_oversight_db(path: str | Path, *, upgrade: bool = False) -> sqlite3.Connection:
+    """Create ``oversight.db`` if needed and open it.
+
+    An existing database of an earlier schema version is refused unless ``upgrade`` is true.
+    """
+    return _open(path, "oversight", OVERSIGHT_MIGRATIONS, create=True, upgrade=upgrade)
 
 
-def create_planted_db(path: str | Path) -> sqlite3.Connection:
-    """Create ``planted.db`` if needed, bring it up to date and open it."""
-    return _open(path, "planted", PLANTED_MIGRATIONS, create=True)
+def create_planted_db(path: str | Path, *, upgrade: bool = False) -> sqlite3.Connection:
+    """Create ``planted.db`` if needed and open it.
+
+    An existing database of an earlier schema version is refused unless ``upgrade`` is true.
+    """
+    return _open(path, "planted", PLANTED_MIGRATIONS, create=True, upgrade=upgrade)
 
 
 def open_oversight_db(path: str | Path) -> sqlite3.Connection:
-    """Open an existing ``oversight.db``. A missing file is an error."""
+    """Open an existing ``oversight.db``. A missing file or an earlier schema is an error."""
     return _open(path, "oversight", OVERSIGHT_MIGRATIONS, create=False)
 
 
 def open_planted_db(path: str | Path) -> sqlite3.Connection:
-    """Open an existing ``planted.db``. A missing file is an error.
+    """Open an existing ``planted.db``. A missing file or an earlier schema is an error.
 
     At run time the registry is never created on demand: a lost registry must stop execution,
     not be quietly replaced by an empty one.
@@ -345,6 +459,15 @@ def open_readonly(path: str | Path, component: str) -> sqlite3.Connection:
     return connection
 
 
+def needs_upgrade(path: str | Path, component: str) -> bool:
+    """Is this an existing database of an earlier schema version? Changes nothing."""
+    if not Path(path).is_file():
+        return False
+    migrations = {"oversight": OVERSIGHT_MIGRATIONS, "planted": PLANTED_MIGRATIONS}[component]
+    with closing(open_readonly(path, component)) as connection:
+        return _current_version(connection) < len(migrations)
+
+
 def _check_not_newer(version: int, component: str, migrations: Sequence[Migration]) -> None:
     if version > len(migrations):
         raise StoreError(
@@ -354,7 +477,11 @@ def _check_not_newer(version: int, component: str, migrations: Sequence[Migratio
 
 
 def _open(
-    path: str | Path, component: str, migrations: Sequence[Migration], create: bool
+    path: str | Path,
+    component: str,
+    migrations: Sequence[Migration],
+    create: bool,
+    upgrade: bool = False,
 ) -> sqlite3.Connection:
     path = Path(path).resolve()
     mode = "rwc" if create else "rw"
@@ -367,6 +494,15 @@ def _open(
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA recursive_triggers = ON")
         _check_identity(connection, component, may_initialise=create)
+        version = _current_version(connection)
+        # Version 0 is a new, empty file: there is nothing in it to protect.
+        if 0 < version < len(migrations) and not upgrade:
+            raise StoreError(
+                f"{component} database at {path} is at schema version {version}; this release "
+                f"needs version {len(migrations)}. Nothing was changed. Back up both "
+                "databases, then run rp init to upgrade them. Earlier releases cannot open "
+                "an upgraded database."
+            )
         journal = connection.execute("PRAGMA journal_mode = WAL").fetchone()[0]
         if journal.lower() != "wal":
             raise StoreError(f"{path}: could not switch to WAL mode (got {journal!r})")
@@ -431,7 +567,10 @@ def _migrate(
         _check_not_newer(version, component, migrations)
         for number, statements in enumerate(migrations[version:], start=version + 1):
             for statement in statements:
-                connection.execute(statement)
+                if callable(statement):
+                    statement(connection)
+                else:
+                    connection.execute(statement)
             connection.execute(
                 "INSERT INTO schema_version (component, version, applied_at) VALUES (?, ?, ?)",
                 (component, number, utc_now()),
