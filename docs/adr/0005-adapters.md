@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-26
 - **Amended:** 2026-11-27 ([LangGraph, and what the review queue can show](#amendment-of-2026-11-27);
-  [OpenAI Agents SDK](#amendment-openai-agents-sdk))
+  [OpenAI Agents SDK](#amendment-openai-agents-sdk); [Pydantic AI](#amendment-pydantic-ai))
 - **Amends:** ADR-003 (replay-safe `submit`, three new methods, and what server
   code can learn about a pair)
 
@@ -113,7 +113,8 @@ Approval inside the agent's own chat is not supported.
 
 ### 5. A failure after approval stops the run
 
-*For the OpenAI Agents SDK, [amended](#amendment-openai-agents-sdk) with further conditions.*
+*Further conditions: [OpenAI Agents SDK](#amendment-openai-agents-sdk) and
+[Pydantic AI](#amendment-pydantic-ai).*
 
 If the guard refuses, or the write fails, or it ran but could not be logged, the error reaches
 the host. It must not become text that lets the model try again: a retry would be a new call,
@@ -247,3 +248,36 @@ told the model something other than what happened and let the run continue:
 3. **After a failed write the host must not carry on from a saved state.** Calls approved
    together run together, so another may have written although the run returned no result.
 
+## Amendment: Pydantic AI
+
+**Accepted 2026-11-27. Found while building that adapter.** Observed with `pydantic-ai-slim` 2.76.0 and
+a scripted model.
+
+**What was missed.** Section 5 counts stopping the run as confirmed, from a `ConnectionError`.
+Other failures inside an approved tool told the model something and let the run continue:
+
+| Failure or setting | What happened |
+| --- | --- |
+| A Pydantic `ValidationError` raised inside the tool, for example while checking a reply after writing | Its text went to the model. |
+| `ModelRetry` or `ToolFailed` raised inside the tool | Its text went to the model. |
+| A time limit on the tool or the whole agent | The model was told the call timed out. The write finished afterwards. |
+| A host hook that recovers from tool errors | The model got the hook's replacement for an ordinary error. |
+| A host hook that raises `ModelRetry` after the tool succeeded | The model was told to try again. The write had happened. |
+
+1. **Every failure of a reviewed tool is raised as `RunStopped`, which is a `BaseException`, not
+   an `Exception`.** `KeyboardInterrupt` and `SystemExit` pass unchanged. A hook for tool errors
+   does not catch it. With two or three calls failing at once in tests, the run ended and the
+   model was not asked again. **The cost:** a host's `except Exception` does not catch it, so the
+   host must catch it by name, and frameworks around the host may treat it as more serious than
+   an ordinary error. The alternative, an ordinary exception with a rule against such hooks,
+   would let a hook added later turn a failed write into a success message.
+2. **ReviewProof builds the reviewed tools, with an unlimited time limit of their own,** which
+   comes before the agent's. Just before writing, the tool reads the limit in force and refuses
+   any other.
+3. **Hooks that act on a reviewed tool's result are not supported.** ReviewProof cannot detect
+   or stop them. The guide says so.
+4. **A run resumes only when every call it waits on has been decided,** because the library
+   takes all answers together. The replayable unit is the whole group: calls approved together
+   run together, so after a failure others may have written. The shared tests allow a library
+   that works this way, and require that nothing runs until all are decided. The host must keep
+   only the newest messages and pause.

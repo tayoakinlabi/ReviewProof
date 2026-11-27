@@ -37,19 +37,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.14"]
+        python: [lowest, "3.14"]  # each adapter says which version is its lowest
         release: [oldest, newest]
         adapter:
-          - {package: langgraph, oldest: "1.2.24", module: langgraph, import: langgraph.types}
-          - {package: openai-agents, oldest: "0.26.0", module: openai_agents, import: agents}
-    name: adapters (${{ matrix.adapter.package }}, ${{ matrix.release }}, ${{ matrix.python }})
+          - {extra: langgraph, package: langgraph, oldest: "1.2.24", module: langgraph,
+             import: langgraph.types, lowest: "3.10"}
+          - {extra: openai-agents, package: openai-agents, oldest: "0.26.0",
+             module: openai_agents, import: agents, lowest: "3.10"}
+          - {extra: pydantic-ai, package: pydantic-ai-slim, oldest: "2.76.0",
+             module: pydantic_ai, import: pydantic_ai, lowest: "3.11"}
+    name: adapters (${{ matrix.adapter.extra }}, ${{ matrix.release }}, ${{ matrix.python }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python }}
-      - run: python -m pip install -e ".[dev,${{ matrix.adapter.package }}]"
+          python-version: ${{ matrix.python == 'lowest' && matrix.adapter.lowest || matrix.python }}
+      - run: python -m pip install -e ".[dev,${{ matrix.adapter.extra }}]"
       - name: Choose the library release
         shell: bash
         env:

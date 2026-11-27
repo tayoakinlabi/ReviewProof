@@ -30,6 +30,10 @@ class Harness(ABC):
     one for each of ``proposals``. Where a method speaks of "the call", it means the first.
     """
 
+    #: False for a library that takes the answers to every waiting call together. Then
+    #: ``resume()`` must do nothing until all of them have been decided.
+    resumes_each_call_alone = True
+
     def __init__(self, tool: ReviewedTool, *proposals: dict[str, Any]) -> None:
         self.tool = tool
         self.proposals = proposals
@@ -255,12 +259,16 @@ class AdapterConformance:
         """A library that runs a step again must not reach an earlier call's write again."""
         world = World(make, self.harness, (PROPOSAL, SECOND))
         world.agent.start()
+        alone = world.agent.resumes_each_call_alone
         world.decide(world.real_token(SECOND))
         world.agent.resume()
-        assert world.written == [SECOND]
+        assert world.written == ([SECOND] if alone else [])
         world.decide(world.real_token(PROPOSAL))
         world.agent.resume()
-        assert world.written == [SECOND, PROPOSAL]
+        if alone:
+            assert world.written == [SECOND, PROPOSAL]
+        else:  # they run together, in either order
+            assert sorted(world.written, key=lambda a: a["record_id"]) == [PROPOSAL, SECOND]
         assert len(world.agent.replies()) == 2
         assert world.deployment.verify().ok
 
@@ -281,10 +289,10 @@ class AdapterConformance:
         world.decide(real)
         world.failure = error
         calls = world.agent.model_calls()
-        with pytest.raises(Exception) as raised:
+        with pytest.raises(BaseException) as raised:  # noqa: B017 - the chain is checked
             world.agent.resume()
         chain, current = [], raised.value
-        while current is not None:
+        while current is not None and current not in chain:  # a harness may make a circle
             chain.append(current)
             current = current.__cause__ or current.__context__
         assert error in chain

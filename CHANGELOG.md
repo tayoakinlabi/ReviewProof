@@ -25,6 +25,9 @@ database format. Each release says what a validated user would need to retest.
 - OpenAI Agents SDK adapter, as `reviewproof[openai-agents]`: `ReviewTools` builds the
   reviewed function tools. See the [guide](docs/guides/openai-agents.md), starting with
   what the SDK sends as traces by default.
+- Pydantic AI adapter, as `reviewproof[pydantic-ai]`, for Python 3.11 or later. **A failed
+  reviewed tool raises `RunStopped`, which `except Exception` does not catch.** See the
+  [guide](docs/guides/pydantic-ai.md).
 
 ### Change impact
 
