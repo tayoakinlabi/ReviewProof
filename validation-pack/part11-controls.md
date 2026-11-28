@@ -81,6 +81,7 @@ Reviewer IDs are whatever your application supplies.
 | Names of what a screen showed, when your application gives them | `planted.db`, with a hash in the log | Verification |
 | A planted error imported, with the author named in its file. **Who ran the import is not recorded** | `planted.db` | The database refuses changes to its content. Verification covers it only **once it has been used** |
 | A planted error approved, with the approver's name and time | `planted.db` | Recorded once. Verification covers it only **once the planted error has been used** |
+| For a planted error drafted from real output: who confirmed the original and who checked it for real data, as named when it was drafted | `planted.db` | The database refuses changes to it. Verification covers it only **once the planted error has been used** |
 | A planted error retired, with who, when and why | `planted.db` | The database refuses a second change. **Verification does not cover it** |
 | A planted error voided: who asked and confirmed, when, why, and your reference | `planted.db`, with a commitment in the event log | Chain and verification, once in effect. A request that is waiting or cancelled is recorded and not verified |
 | A planted error due when none could be used | `planted.db` | **Not covered by verification** |

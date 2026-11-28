@@ -16,6 +16,7 @@ from qual_support import load_pool, plan, sit
 
 from reviewproof import initialise
 from reviewproof.store import schema
+from reviewproof.strictload import load_file
 
 ROOT = Path(__file__).parents[1]
 _SPEC = importlib.util.spec_from_file_location(
@@ -179,3 +180,35 @@ def test_a_mistake_is_reported_without_creating_anything(
 def test_a_value_cannot_become_a_spreadsheet_formula():
     assert records._safe("=HYPERLINK(1)") == "'=HYPERLINK(1)"
     assert records._safe(None) == ""
+
+
+@pytest.mark.req("REQ-064")
+def test_the_register_shows_which_were_drafted_from_real_output(make, capsys):
+    deployment = make(rate=0.001)
+    ov = deployment.open()
+    data = load_file(EXAMPLES[0])
+    data["provenance"] = {
+        "origin": "real_output",
+        "source_confirmed_by": "qa-7",
+        "checked_for_real_data_by": "qa-8",
+        "tool_version": "0.1.0",
+        "drafted_at": "2026-11-27T00:00:00.000000Z",
+    }
+    ov.planted.import_data(data)
+    ov.planted.import_file(EXAMPLES[1])
+    status, rows, output = run(capsys, "register", deployment.planted_db)
+    assert status == 0
+    shown = [(r["origin"], r["source_confirmed_by"], r["checked_for_real_data_by"]) for r in rows]
+    assert shown == [("real_output", "qa-7", "qa-8"), ("", "", "")]
+    assert "tool_version" not in output
+
+
+def test_the_register_reads_a_database_with_no_provenance_column(tmp_path, monkeypatch, capsys):
+    paths = tmp_path / "oversight.db", tmp_path / "planted.db"
+    with monkeypatch.context() as old:
+        old.setattr(schema, "PLANTED_MIGRATIONS", schema.PLANTED_MIGRATIONS[:3])
+        initialise(*paths)
+    before = paths[1].read_bytes()
+    status, rows, _ = run(capsys, "register", paths[1])
+    assert status == 0 and rows == []
+    assert paths[1].read_bytes() == before

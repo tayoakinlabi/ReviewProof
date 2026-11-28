@@ -160,6 +160,8 @@ def _describe(library: PlantedLibrary, config: Config, planted: PlantedError) ->
     needed = approvals_needed(True if queue is None else queue.gxp)
     status = library.status(planted).value.replace("_", " ")
     pool = "" if planted.purpose.value == "live" else f"  [{planted.purpose.value}]"
+    if planted.provenance is not None:
+        pool += "  [from real output]"
     return (
         f"{planted.planted_error_id}  {planted.queue}  {planted.defect_class.value}{pool}  "
         f"{status}  ({len(planted.approvers)} of {needed} approvals)"
@@ -186,6 +188,11 @@ def _approve(args: argparse.Namespace, config: Config) -> int:
         library = PlantedLibrary(connection, config)
         planted = library.approve(args.planted_error_id, args.approver)
         print(_describe(library, config, planted))
+        if planted.provenance is not None:
+            print(
+                "Drafted from real output. By approving, you confirm that you read the whole "
+                "item and found no real information in it."
+            )
     return common.EXIT_OK
 
 

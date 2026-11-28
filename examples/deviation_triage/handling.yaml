@@ -1,0 +1,23 @@
+# Handling profile for rp craft (see the authoring guide). Here items.json, which is synthetic,
+# stands in for an export. Real exports never belong in this folder or in version control.
+#
+# Every property of the item format is listed: replace, shift_date, keep or review.
+queue: deviation-triage
+properties:
+  deviation_id: {handling: replace, pattern: "DEV-2027-{4 digits}"}
+  occurred_on: shift_date
+  product: keep              # in your own data, a product name may be confidential
+  lot_number: replace        # no pattern: each product has its own lot series (README rule 2),
+                             # so choose the new number with --set lot_number=...
+  process_step: keep
+  description: review
+  classification: keep
+  classification_rationale: review
+  root_cause: review
+  immediate_actions: review
+  capa_required: keep
+# Names of people, sites, suppliers, customers and anything else that must never appear.
+# The tool cannot guess these. An empty list must be written as [].
+blocked_terms:
+  - Example Site North
+  - Invented Supplier Ltd

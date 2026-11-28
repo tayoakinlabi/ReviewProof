@@ -1,6 +1,7 @@
 """The planted-error library: import what users write, and have it approved (ADR-003).
 
-Everything here lives in ``planted.db``. The tool never samples or copies live items.
+Everything here lives in ``planted.db``. ReviewProof never takes an item from a queue to make
+one: planted errors come from files its users supply (ADR-003, ADR-009).
 
 ReviewProof has no sign-in, so it cannot prove who an approver is. It requires the author and
 the approvers to be different names. Who can write to ``planted.db`` is controlled by the file's
@@ -39,7 +40,16 @@ _REQUIRED = frozenset(
         "payload",
     }
 )
-_OPTIONAL = frozenset({"correct_value", "notes", "purpose"})
+_OPTIONAL = frozenset({"correct_value", "notes", "purpose", "provenance"})
+#: What ``rp craft finish`` records about a planted error drafted from real output.
+PROVENANCE_KEYS = (
+    "origin",
+    "source_confirmed_by",
+    "checked_for_real_data_by",
+    "tool_version",
+    "drafted_at",
+)
+REAL_OUTPUT = "real_output"
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 _COLUMNS = (
@@ -62,7 +72,11 @@ _COLUMNS = (
     "retired_by",
     "retire_reason",
     "purpose",
+    "provenance",
 )
+#: What a column holds in a database made before it existed, when opened read-only: every
+#: planted error then was a live one, and none was drafted from real output.
+_ADDED_LATER = {"purpose": f"'{Purpose.LIVE.value}'", "provenance": "NULL"}
 
 
 class PlantedImportError(ValueError):
@@ -109,6 +123,9 @@ class PlantedError:
     retire_reason: str | None = None
     #: A live planted error goes into review queues; a qualification one only into sessions.
     purpose: Purpose = Purpose.LIVE
+    #: For one drafted from real output (ADR-009): who confirmed the original was correct and
+    #: who checked the item for real data, among others. None for any other.
+    provenance: Mapping[str, str] | None = field(default=None, repr=False)
 
     @property
     def approvers(self) -> frozenset[str]:
@@ -151,6 +168,13 @@ class PlantedLibrary:
         except PlantedImportError as error:
             raise PlantedImportError(f"{path}: {error}") from error
 
+    @classmethod
+    def check_data(cls, config: Config, data: Any) -> None:
+        """Raise ``PlantedImportError`` if a file's content could not be imported. It opens no
+        database, so it says nothing about duplicates or IDs already in use.
+        """
+        cls(None, config)._parse(data)
+
     def import_data(self, data: Any) -> PlantedError:
         values = self._parse(data)
         with self._writing():
@@ -171,6 +195,8 @@ class PlantedLibrary:
                 "reserved_target_id": self._config.reserved_target_prefix + secrets.token_hex(12),
                 "imported_at": self._clock(),
             }
+            if row["provenance"] is None:
+                del row["provenance"]  # the column is then empty
             self._db.execute(
                 f"INSERT INTO planted_errors ({', '.join(row)}) "
                 f"VALUES ({', '.join('?' * len(row))})",
@@ -240,7 +266,12 @@ class PlantedLibrary:
         if problems:
             raise PlantedImportError("; ".join(problems))
 
+        provenance = None
+        if "provenance" in data:
+            provenance = _as_json(_provenance(data["provenance"], author), "provenance")
+
         return {
+            "provenance": provenance,
             "planted_error_id": planted_error_id,
             "queue_id": queue.name,
             "defect_class": defect_class.value,
@@ -403,10 +434,16 @@ class PlantedLibrary:
 
     def _select(self, tail: str, arguments: tuple) -> list[sqlite3.Row]:
         try:
-            columns = _COLUMNS
-            if not self._has_purpose():
-                # A database not yet upgraded, opened read-only: everything in it is live.
-                columns = (*_COLUMNS[:-1], f"'{Purpose.LIVE.value}' AS purpose")
+            info = self._db.execute("PRAGMA table_info(planted_errors)").fetchall()
+            present = {row[1] for row in info} or set(_COLUMNS)
+            columns = [
+                name
+                if name in present
+                else f"{_ADDED_LATER[name]} AS {name}"
+                if name in _ADDED_LATER
+                else name
+                for name in _COLUMNS
+            ]
             return self._db.execute(
                 f"SELECT {', '.join(columns)} FROM planted_errors {tail}", arguments
             ).fetchall()
@@ -425,10 +462,6 @@ class PlantedLibrary:
             )
         except sqlite3.Error as error:
             raise StoreError(f"cannot read the item registry: {error}") from error
-
-    def _has_purpose(self) -> bool:
-        info = self._db.execute("PRAGMA table_info(planted_errors)").fetchall()
-        return not info or any(row[1] == "purpose" for row in info)
 
     def _row(self, planted_error_id: str) -> sqlite3.Row | None:
         rows = self._select("WHERE planted_error_id = ?", (planted_error_id,))
@@ -460,10 +493,27 @@ def _from_row(row: sqlite3.Row) -> PlantedError:
         values["correct_value"] = None if correct is None else json.loads(correct)
         values["defect_class"] = DefectClass(values["defect_class"])
         values["purpose"] = Purpose(values["purpose"])
+        if values["provenance"] is not None:
+            values["provenance"] = dict(json.loads(values["provenance"]))
     except (ValueError, TypeError) as error:
         raise StoreError(f"planted error {values['planted_error_id']!r} is damaged") from error
     values["queue"] = values.pop("queue_id")
     return PlantedError(**values)
+
+
+def _provenance(value: Any, author: str) -> dict[str, str]:
+    """Check what a file says about where it came from. Names are compared as for approvals."""
+    keys = ", ".join(PROVENANCE_KEYS)
+    if not isinstance(value, dict) or set(value) != set(PROVENANCE_KEYS):
+        raise PlantedImportError(f"provenance must hold exactly: {keys}")
+    if not all(_is_text(entry) for entry in value.values()):
+        raise PlantedImportError("every provenance entry must be non-empty text")
+    if value["origin"] != REAL_OUTPUT:
+        raise PlantedImportError(f"provenance.origin must be {REAL_OUTPUT}")
+    for key in ("source_confirmed_by", "checked_for_real_data_by"):
+        if not _person(value[key]) or _person(value[key]) == _person(author):
+            raise PlantedImportError(f"provenance.{key} must name someone other than the author")
+    return {key: value[key].strip() for key in PROVENANCE_KEYS}
 
 
 def _is_text(value: Any) -> bool:

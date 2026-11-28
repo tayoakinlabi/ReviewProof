@@ -57,16 +57,24 @@ def read_entry(planted: sqlite3.Connection, item_id: str) -> RegistryEntry:
 def fingerprint_of(planted: sqlite3.Connection, planted_error_id: str) -> str:
     """The fingerprint of a stored planted error as it is now."""
     try:
+        columns = fingerprint_columns(planted)
         row = planted.execute(
-            f"SELECT {', '.join(FINGERPRINT_COLUMNS)} FROM planted_errors "
-            "WHERE planted_error_id = ?",
+            f"SELECT {', '.join(columns)} FROM planted_errors WHERE planted_error_id = ?",
             (planted_error_id,),
         ).fetchone()
     except sqlite3.Error as error:
         raise StoreError(f"cannot read the registry: {error}") from error
     if row is None:
         raise StoreError("the registry row refers to something that is gone")
-    return planted_fingerprint(dict(zip(FINGERPRINT_COLUMNS, row, strict=True)))
+    return planted_fingerprint(dict(zip(columns, row, strict=True)))
+
+
+def fingerprint_columns(planted: sqlite3.Connection) -> tuple[str, ...]:
+    """The columns a fingerprint is made from. A database not yet upgraded, opened
+    read-only, has no provenance.
+    """
+    present = {row[1] for row in planted.execute("PRAGMA table_info(planted_errors)")}
+    return (*FINGERPRINT_COLUMNS, "provenance") if "provenance" in present else FINGERPRINT_COLUMNS
 
 
 def commitment_of(planted: sqlite3.Connection, entry: RegistryEntry) -> str:

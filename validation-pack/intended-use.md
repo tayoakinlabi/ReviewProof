@@ -66,6 +66,7 @@ a **suggestion to challenge**, not a determination.
 | F7 Reviewer qualification | Seeded-defect sessions and status | **[FILL]** | **[FILL]** | Directly, if it decides who may review |
 | F8 Paused agents and adapters | Connects agent libraries to the guard | **[FILL: which adapter]** | **[FILL]** | Directly, as F3 |
 | F9 Voiding faulty planted errors | Leaves a faulty planted error's results out of scores | **[FILL]** | **[FILL]** | Directly: changes the figures Quality decides from |
+| F10 Drafting from real output | Turns an exported item into a draft planted error: replaces identifiers, shifts dates and searches for listed details | **[FILL]** | **[FILL]** | Support: people confirm and approve each one. It handles real data, so assess its privacy |
 
 ## 5. Records
 
@@ -131,4 +132,6 @@ met. The ones that most affect whether results mean anything:
 - With one reviewer and few results, the figures showing what a void removed are withheld,
   and the "Voided results" check raises no alert.
 - A reviewer's qualification does not expire with time.
+- Drafting from real output cannot make an item anonymous. Its search finds only listed
+  identifiers and terms, in some spellings. What is imported cannot be removed.
 - **[FILL: limitations you found]**

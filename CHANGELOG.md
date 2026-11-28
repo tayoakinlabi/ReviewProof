@@ -44,6 +44,11 @@ These concern reporting code that no release contains yet.
   a "Voided results" check flags a void that hides a breach or too large a share (setting
   `voided_share_max`), and a qualification pass counts only while its mark is met without
   voided planted errors. See [ADR-008](docs/adr/0008-voiding-planted-errors.md).
+- Drafting planted errors from real agent output: `rp craft start`, `defect`, `check` and
+  `finish` turn an item you export into a planted-error file, replacing identifiers, shifting
+  dates, stopping listed details and a second defect, and recording who confirmed the original
+  and who checked for real data. **It cannot make an item anonymous.** `planted.db` is now at
+  schema version 4. See [ADR-009](docs/adr/0009-planted-errors-from-real-output.md).
 - Settings: optional `reporting` and `alerts` sections, and per-queue `thresholds`.
 - Qualification sessions: planted errors and correct items, a pass mark fixed in advance,
   and each reviewer's status for the current version of the AI system (`rp qualify`).
@@ -68,18 +73,24 @@ These concern reporting code that no release contains yet.
 
 ### Change impact
 
-**This release needs new database schemas: version 4 of `oversight.db` and version 3 of
+**This release needs new database schemas: version 4 of `oversight.db` and version 4 of
 `planted.db`.** It refuses to write to databases made by 0.1.0 until you run `rp init`, so
 installing it changes nothing in your records by itself. **Back up both databases first.** If
 you have upgraded a database with this repository's source before, you may need to run
 `rp init` again. The upgrade rebuilds the log table, replaces the column that holds a
-queue's risk category, keeping the old one unused, and adds the void records. Stored values and hashes do not change, and
-heads exported by 0.1.0 still match. After it, 0.1.0 cannot open the databases. A validated
-user should run `rp verify` with a previously exported head before and after, retest the gate,
-guard and log, and check each queue's planted share.
+queue's risk category, keeping the old one unused, adds the void records, and adds an empty
+provenance column to planted errors. Stored values and hashes do not change, and heads exported
+by 0.1.0 still match. After it, 0.1.0 cannot open the databases. A validated user should run
+`rp verify` with a previously exported head before and after, retest the gate, guard and log,
+and check each queue's planted share.
 
 **A `vital_base_risk` above `A10`, such as `A11` or `A55`, is now refused.** 0.1.0 accepted
 it and gave it the top share. Correct such settings before installing.
+
+**The validation pack's REQ-005 has changed.** It now says that ReviewProof never reads a
+queue or its databases to make a planted error, because a file you export may hold items that
+were submitted for review. If you adapted the earlier wording, assess the change. If you use
+`rp craft`, first meet the new deployment duty DEP-020.
 
 The new figures, reports and qualification results need testing against their intended
 use. See [ADR-004](docs/adr/0004-metrics-and-reports.md) and

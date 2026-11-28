@@ -15,8 +15,8 @@ the current folder.
 | 2 | The command was refused or could not run |
 | 3 | `rp alerts --send` could not deliver an alert |
 
-`rp plant`, `rp qualify` and `rp system` act on planted errors or settings. Run them where reviewers cannot
-see.
+`rp plant`, `rp craft`, `rp qualify` and `rp system` act on planted errors or settings. Run them
+where reviewers cannot see.
 
 ## `rp init`
 
@@ -133,6 +133,51 @@ rp plant draft --queue deviation-triage --from items.json --item 2 \
   --mutator classification-flip --field classification --id PE-0013 --author me \
   --out PE-0013.yaml
 ```
+
+## `rp craft start`
+
+The four `rp craft` commands draft a planted error from items **you export** from your own
+systems. Read [drafting from real output](guides/writing-planted-errors.md#drafting-from-real-output-rp-craft)
+first. **They handle real data, and cannot make an item anonymous.** They open no database, make
+no network connection, never change or delete a file you give them, and never overwrite one.
+Their messages name properties and kinds of problem, never a value from your files; if
+something unexpected fails, only the kind of failure is shown.
+
+`start` takes one exported item, replaces identifiers and shifts dates as the handling profile
+says, and writes a working file. **It may still hold real information,** and `rp plant import`
+refuses it.
+
+Options: `--config`, `--profile` (the queue's handling profile), `--export` (a `.json` list of
+items), `--item` (which one, from 0), `--id`, `--author`, `--set NAME=VALUE` (a new value for a
+replaced property; repeat for several), `--shift-days` (needed if the item has a date to
+shift), `--out`.
+
+## `rp craft defect`
+
+Add one defect to a copy of a working file. It refuses a draft that already has one.
+
+Options: `--config`, `--profile`, `--export`, `--work`, `--mutator` (`value-swap`, `omission`
+or `classification-flip`), `--field`, `--new-value` (for `value-swap`), `--remove-index` (for
+`omission`), `--to` (for `classification-flip`), `--out`.
+
+## `rp craft check`
+
+List what stops a working file being finished, and each warning with its code. Exit status 2
+means that something stops it. **Passing does not show that the item holds no real
+information.**
+
+Options: `--config`, `--profile`, `--export` (the same file the draft was started from),
+`--work`.
+
+## `rp craft finish`
+
+Check again, and write the planted-error file if nothing stops it. Every warning must be
+acknowledged, and both checks must name someone other than the author. ReviewProof cannot
+verify who is typing. Import and approve the file as usual.
+
+Options: `--config`, `--profile`, `--export`, `--work`, `--source-confirmed-by` (who confirmed
+that the original was correct), `--checked-for-real-data-by` (who read the whole finished
+item), `--acknowledge CODE` (repeat for each warning), `--out`.
 
 ## `rp qualify start`
 

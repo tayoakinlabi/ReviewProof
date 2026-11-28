@@ -31,11 +31,11 @@ from reviewproof.config import Config, QueueConfig
 from reviewproof.models import EventType, ItemKind, new_item_id
 from reviewproof.planted import PlantedError, PlantedLibrary
 from reviewproof.store.commitments import (
-    FINGERPRINT_COLUMNS,
     new_salt,
     planted_commitment,
     planted_fingerprint,
 )
+from reviewproof.store.registry import fingerprint_columns
 from reviewproof.store.schema import StoreError
 
 _CHUNK = 500
@@ -224,7 +224,7 @@ class Gate:
 
     def _register(self, planted: PlantedError, reviewer: str | None) -> Injection:
         row = self._db.execute(
-            f"SELECT {', '.join(FINGERPRINT_COLUMNS)} FROM planted_errors "
+            f"SELECT {', '.join(fingerprint_columns(self._db))} FROM planted_errors "
             "WHERE planted_error_id = ?",
             (planted.planted_error_id,),
         ).fetchone()

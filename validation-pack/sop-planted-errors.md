@@ -22,7 +22,8 @@ means no more than the planted errors behind it.
 
 Queues covered: **[FILL]**.
 
-This procedure addresses deployment duty DEP-012, and parts of DEP-007 and DEP-008, in the
+This procedure addresses deployment duties DEP-012 and DEP-020, and parts of DEP-007 and
+DEP-008, in the
 [requirements](requirements.md#deployment-duties). Reviewing the results is in the
 [metric review procedure](sop-metric-review.md). Planted errors for qualification also follow
 the [qualification procedure](sop-reviewer-qualification.md).
@@ -35,6 +36,7 @@ the [qualification procedure](sop-reviewer-qualification.md).
 | Author | Writing planted errors | **[FILL: required knowledge and training]** |
 | Approver | Judging each one. Never its author | **[FILL: required knowledge and training]** |
 | QA administrator | Running the commands, and controlling access to the files | **[FILL]** |
+| Real-output checker, if you draft from real output | Confirming that an original was correct, and reading the finished item for real information. Never its author; one person may do both | **[FILL]** |
 | Void requester and confirmer | Two people who decide that a planted error was faulty (DEP-019). At least one neither wrote nor approved it, and neither reviews on the queue | **[FILL]** |
 
 Nobody who reviews on a queue writes, approves or can read that queue's planted errors.
@@ -54,7 +56,8 @@ instead.]**
 
 2. Tell reviewers about the program before it starts, as in the
    [privacy rules](sop-metric-review.md#9-reviewer-privacy-and-disclosure).
-3. Restrict `planted.db`, planted-error files, their drafts and their backups. Reviewers have
+3. Restrict `planted.db`, planted-error files, their drafts and their backups, and any export,
+   handling profile and working file. Reviewers have
    no access. Run `rp plant` where reviewers cannot see. **[FILL: where files are kept, who has
    access, and what happens to them after import.]**
 4. Work out the stock ([section 4](#4-how-many-to-keep)), then write, approve and load it.
@@ -100,6 +103,45 @@ kept from colliding.]**
 Drafts made with the drafting helpers copy a correct item. The author works through the whole
 checklist in the draft before it goes to approval.
 
+**Plan the mix.** Rule-based helpers make some kinds of defect easily and not others. If only
+the easy ones are written, the catch rate measures the wrong thing. For each queue, set how many
+of each kind to keep, and how many harder ones: **[FILL]**.
+
+### Drafting from real output
+
+**[FILL: "We do not do this", or complete the table below. Remove the rest of this section if you
+do not.]** Where you do, use [`rp craft`](../docs/guides/writing-planted-errors.md#drafting-from-real-output-rp-craft)
+(DEP-020). **It cannot make an item anonymous, and what is imported into `planted.db` cannot be
+taken out.**
+
+| Decide first | Yours |
+| --- | --- |
+| The decision that real output may be used this way, and who made it | **[FILL]** |
+| The privacy assessment and its record | **[FILL]** |
+| Which outputs may be used: for example, how old, and none that someone who reviews on the queue worked on | **[FILL]** |
+| How an original is confirmed correct. **An approval alone is not enough:** approvals are what you are testing | **[FILL]** |
+| Who owns each handling profile and its list of blocked terms, and how changes are controlled | **[FILL]** |
+| The reserved ranges that new identifiers come from | **[FILL]** |
+| Where exports and working files are kept, who can read them, when they are destroyed, and how that is recorded | **[FILL]** |
+
+For each draft, in order:
+
+1. The author starts it, adds one defect, rewrites text that describes a particular event, and
+   runs the check.
+2. Someone other than the author confirms that **the original was correct**, and reads **the
+   whole finished item** for names, places, dates and any detail that points to a person or an
+   event, including the correct value and notes. The search misses much: partial identifiers,
+   surnames alone, misspellings, and anything nobody listed.
+3. Both sign **[FILL: where]**. Then the author finishes the draft with their IDs. ReviewProof
+   cannot verify who is typing.
+4. The export and working files are destroyed as decided above.
+
+**If real information is found after import:** retire the planted error at once, which stops
+further use but **leaves its content in the file**, open **[FILL: your privacy incident and
+quality records]**, and decide with your data protection lead what happens to the databases and
+their backups. Do not edit the files: verification would fail, and the content may remain in
+copies.
+
 ## 6. Approval
 
 Each approver checks the file independently, and records the result:
@@ -112,7 +154,7 @@ Each approver checks the file independently, and records the result:
 | The expected decision, and the defect field, are what our procedures require | |
 | It looks like a real item, and nothing marks it out | |
 | Its identifiers cannot match a real record | |
-| It holds no real data | |
+| It holds no real data. For one marked `[from real output]`, you read the whole item and found no real information | |
 
 | | |
 | --- | --- |
@@ -179,7 +221,8 @@ rp plant retire PE-0001 --by YOUR-ID --reason "recognised by a reviewer"
 Retiring is permanent. `rp plant list` does not show who retired one or why, and **log
 verification does not cover retirement records**. Record each retirement in **[FILL: your
 quality system]** too. This script lists every planted error with who wrote, approved and
-retired it, when and why, without its content:
+retired it, when and why, without its content. For one drafted from real output it also shows
+who confirmed the original and who checked it for real data:
 
 ```bash
 python validation-pack/planted_records.py register planted.db
@@ -268,6 +311,7 @@ MT-001, passes again.
 | --- | --- | --- |
 | Planted errors, approvals, retirements and voids | `planted.db`, and for each void in effect a commitment in `oversight.db` | **[FILL]** |
 | Signed approval checklists | **[FILL]** | **[FILL]** |
+| If you draft from real output: both signed checks, and the destruction of exports and working files | **[FILL]** | **[FILL]** |
 | Settings and their change records | **[FILL]** | **[FILL]** |
 | Realism checks, retirements and restocking | **[FILL]** | **[FILL]** |
 | Investigations under section 10 | **[FILL]** | **[FILL]** |

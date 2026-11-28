@@ -524,13 +524,30 @@ _PLANTED_V3: Migration = [
     *_frozen_rows("void_cancellations", "void_id"),
 ]
 
+# --------------------------------------------------------------------------- planted.db 4
+# Where a planted error drafted from real output came from (ADR-009). Empty for any other.
+
+_PLANTED_V4: Migration = [
+    """ALTER TABLE planted_errors ADD COLUMN provenance TEXT
+        CHECK (provenance IS NULL OR length(provenance) > 0)""",
+    """CREATE TRIGGER planted_errors_provenance_fixed BEFORE UPDATE OF provenance
+    ON planted_errors
+    BEGIN SELECT RAISE(ABORT, 'planted_errors: content cannot be changed; import a new one');
+    END""",
+]
+
 OVERSIGHT_MIGRATIONS: tuple[Migration, ...] = (
     _OVERSIGHT_V1,
     _OVERSIGHT_V2,
     _OVERSIGHT_V3,
     _OVERSIGHT_V4,
 )
-PLANTED_MIGRATIONS: tuple[Migration, ...] = (_PLANTED_V1, _PLANTED_V2, _PLANTED_V3)
+PLANTED_MIGRATIONS: tuple[Migration, ...] = (
+    _PLANTED_V1,
+    _PLANTED_V2,
+    _PLANTED_V3,
+    _PLANTED_V4,
+)
 
 
 # --------------------------------------------------------------------------- opening

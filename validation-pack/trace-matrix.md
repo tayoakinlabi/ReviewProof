@@ -9,7 +9,7 @@ passed: for that, make a record from a test run, as the
 Nor does a tag show that the tests are enough for your use. The deployment duties have
 no tests here: they are yours to test.
 
-58 requirements, 263 tagged tests. A test may cover several requirements, and may run with several inputs.
+64 requirements, 287 tagged tests. A test may cover several requirements, and may run with several inputs.
 
 ## REQ-001
 
@@ -56,8 +56,10 @@ Refuse changes to a planted error's content after import. Record approvals and r
 
 ## REQ-005
 
-Never create a planted error from an item submitted for review. Optional drafting helpers work only from an item the user supplies.
+Never read a queue, or ReviewProof's own databases, to make a planted error. Draft one only from files its users supply.
 
+- [`tests/test_craft.py`](../tests/test_craft.py)
+  - `test_the_whole_flow_opens_no_database_and_no_connection`
 - [`tests/test_mutators.py`](../tests/test_mutators.py)
   - `test_a_draft_shares_nothing_with_its_source`
 - [`tests/test_requirement_gaps.py`](../tests/test_requirement_gaps.py)
@@ -516,6 +518,8 @@ Change a database's schema only when asked to upgrade it, copy the log exactly o
   - `test_a_version_2_database_is_not_upgraded_unasked`
   - `test_a_version_3_database_is_not_upgraded_unasked`
   - `test_nothing_upgrades_a_database_unasked`
+  - `test_planted_version_3_is_not_upgraded_unasked_and_can_still_be_read`
+  - `test_planted_version_4_keeps_every_row_fingerprint_and_void`
   - `test_the_log_is_unchanged_by_the_upgrade`
   - `test_version_3_keeps_every_row_and_stored_rating`
   - `test_version_4_copies_the_log_exactly_and_changes_no_record`
@@ -675,3 +679,62 @@ Never change a recorded qualification result because of a void. Count a pass onl
   - `test_a_planted_error_voided_while_its_session_is_open`
   - `test_an_earlier_pass_that_is_untouched_still_counts`
   - `test_relabelling_a_session_item_cannot_hide_a_void_from_qualification_status`
+
+## REQ-059
+
+Draft from an exported item only with a handling profile that lists every property of the item format, replace each identifier it lists wherever the search finds it in that item, and move all the item's listed dates by the same number of days.
+
+- [`tests/test_craft.py`](../tests/test_craft.py)
+  - `test_a_property_missing_from_the_profile_stops_everything`
+  - `test_start_replaces_identifiers_and_shifts_dates_everywhere`
+
+## REQ-060
+
+Refuse to finish a draft while a value listed for replacement in any exported item, a blocked term, or an original listed date of the drafted item appears in any text that would be imported, in the spellings the [authoring guide](../docs/guides/writing-planted-errors.md#what-the-search-finds-and-what-it-misses) says the search covers.
+
+- [`tests/test_craft.py`](../tests/test_craft.py)
+  - `test_a_listed_detail_is_found_wherever_it_is_put`
+  - `test_an_unshifted_date_is_found`
+  - `test_the_id_and_author_are_searched`
+
+## REQ-061
+
+Refuse to finish a draft that changes a replaced, shifted or kept property other than the defect field, that does not change the defect field, or that could not be imported.
+
+- [`tests/test_craft.py`](../tests/test_craft.py)
+  - `test_a_good_draft_has_nothing_stopping_it`
+  - `test_a_second_structured_change_is_refused`
+  - `test_another_correct_value_does_not_make_an_unchanged_field_a_defect`
+  - `test_what_could_not_be_imported_is_refused`
+
+## REQ-062
+
+Finish a draft only when each warning has been acknowledged for the exact text it concerns, and the draft names who confirmed that the original was correct and who checked the item for real data, neither of them its author.
+
+- [`tests/test_craft.py`](../tests/test_craft.py)
+  - `test_an_acknowledgment_stops_counting_when_the_text_changes`
+  - `test_both_checks_need_someone_other_than_the_author`
+  - `test_every_warning_must_be_acknowledged`
+
+## REQ-063
+
+While drafting, open neither database and make no network connection, never change or delete a file it is given or overwrite any file, and repeat no value from the exported items in a message.
+
+- [`tests/test_craft.py`](../tests/test_craft.py)
+  - `test_an_unexpected_failure_shows_only_its_type`
+  - `test_no_command_repeats_a_value_from_the_export`
+  - `test_nothing_is_overwritten`
+  - `test_the_whole_flow_opens_no_database_and_no_connection`
+
+## REQ-064
+
+Keep with a planted error drafted this way a record of its origin and of both checks that cannot be changed, that the log's commitment to that planted error covers, and that holds nothing identifying the original. Refuse to import a working file.
+
+- [`tests/test_craft.py`](../tests/test_craft.py)
+  - `test_a_working_file_cannot_be_imported`
+  - `test_list_and_approval_say_that_it_came_from_real_output`
+  - `test_provenance_is_stored_fixed_and_committed_to_by_the_log`
+  - `test_the_finished_file_keeps_nothing_that_identifies_the_original`
+  - `test_wrong_provenance_is_not_imported`
+- [`tests/test_planted_records.py`](../tests/test_planted_records.py)
+  - `test_the_register_shows_which_were_drafted_from_real_output`

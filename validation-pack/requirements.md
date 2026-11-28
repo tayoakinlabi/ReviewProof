@@ -35,7 +35,7 @@ reusing its number. Mark any requirement that does not apply to your intended us
 | REQ-002 | Give each planted error its own target ID in a reserved range, refuse a second import of the same content, and refuse to change a planted error by importing its ID again. |
 | REQ-003 | Use a planted error only after approval by someone other than its author: by two different people on a queue marked GxP, by one otherwise. Names are compared ignoring case and surrounding spaces. |
 | REQ-004 | Refuse changes to a planted error's content after import. Record approvals and retirement once each, with who did it, and refuse deletion. |
-| REQ-005 | Never create a planted error from an item submitted for review. Optional drafting helpers work only from an item the user supplies. |
+| REQ-005 | Never read a queue, or ReviewProof's own databases, to make a planted error. Draft one only from files its users supply. |
 
 ### Releasing planted errors
 
@@ -155,6 +155,20 @@ See [ADR-008](../docs/adr/0008-voiding-planted-errors.md).
 | REQ-057 | Wherever voided results affect a report, show how many were left out, as catches and misses, the reasons, and the catch rate with them beside the one without. Judge a "Voided results" check as breached when a score check would be breached with them but is not without them, including for too little data, or when more than the set share of results is voided. Withhold what would describe one person, and never present the check as met when it cannot be judged. |
 | REQ-058 | Never change a recorded qualification result because of a void. Count a pass only while its original mark is met without any voided planted error, and never turn a fail into a pass. |
 
+### Drafting from real output
+
+See [ADR-009](../docs/adr/0009-planted-errors-from-real-output.md). **No requirement here says
+that a drafted item holds no real information.** The software cannot know that.
+
+| ID | The software shall |
+| --- | --- |
+| REQ-059 | Draft from an exported item only with a handling profile that lists every property of the item format, replace each identifier it lists wherever the search finds it in that item, and move all the item's listed dates by the same number of days. |
+| REQ-060 | Refuse to finish a draft while a value listed for replacement in any exported item, a blocked term, or an original listed date of the drafted item appears in any text that would be imported, in the spellings the [authoring guide](../docs/guides/writing-planted-errors.md#what-the-search-finds-and-what-it-misses) says the search covers. |
+| REQ-061 | Refuse to finish a draft that changes a replaced, shifted or kept property other than the defect field, that does not change the defect field, or that could not be imported. |
+| REQ-062 | Finish a draft only when each warning has been acknowledged for the exact text it concerns, and the draft names who confirmed that the original was correct and who checked the item for real data, neither of them its author. |
+| REQ-063 | While drafting, open neither database and make no network connection, never change or delete a file it is given or overwrite any file, and repeat no value from the exported items in a message. |
+| REQ-064 | Keep with a planted error drafted this way a record of its origin and of both checks that cannot be changed, that the log's commitment to that planted error covers, and that holds nothing identifying the original. Refuse to import a working file. |
+
 ## Deployment duties
 
 For each duty, record how you meet it and how you tested it. Where the tool's design records
@@ -174,7 +188,7 @@ explain why, see the [design records](../docs/adr/) and the
 | DEP-009 | Control the clock of every machine that runs ReviewProof. | **[FILL]** |
 | DEP-010 | Export the log's head at set intervals to storage that ReviewProof and its administrators cannot rewrite, and verify against it. Without this, a rebuilt log cannot be detected. | **[FILL]** |
 | DEP-011 | Back up and restore the two databases as a pair, test the restore, and back both up before any upgrade. | **[FILL]** |
-| DEP-012 | Have qualified staff write and approve realistic planted errors, from synthetic or de-identified data, with a real defect in each. Keep enough of them, replace ones reviewers may know, and act on recorded shortfalls. | **[FILL]** |
+| DEP-012 | Have qualified staff write and approve realistic planted errors, from synthetic data or de-identified data, which may be real output handled as in DEP-020, with a real defect in each. Keep enough of them, in a planned mix of kinds, replace ones reviewers may know, and act on recorded shortfalls. | **[FILL]** |
 | DEP-013 | Tell reviewers about the program, limit who sees individual results and for what purpose, and complete the privacy, employment and works-council reviews that apply to you. | **[FILL]** |
 | DEP-014 | Decide in your procedures who may review without a current qualification, and enforce it. | **[FILL]** |
 | DEP-015 | Keep the settings file under change control. Thresholds apply to past decisions when a report is made, and the file's AI system version replaces the recorded one. | **[FILL]** |
@@ -182,3 +196,4 @@ explain why, see the [design records](../docs/adr/) and the
 | DEP-017 | Decide what your agent library, model provider and tracing tools may send and store, and set them accordingly. Some send tracing data by default. | **[FILL]** |
 | DEP-018 | Fix the versions of ReviewProof and of your agent library, test them with data representative of your work before use, and test again before changing either. | **[FILL]** |
 | DEP-019 | Decide who may request and confirm voids, and require a quality record and signatures for each. Review together every planted error with the same fault, review every void at your metric review, and never quote a figure that leaves voided results out without the figure that includes them. | **[FILL]** |
+| DEP-020 | If you draft planted errors from real output: first decide that this use is permitted, assess its privacy, and say which outputs may be used. Have someone other than the author confirm that each original was correct, and read each finished item for real information. Protect exports, handling profiles and working files, and destroy them. | **[FILL]** |

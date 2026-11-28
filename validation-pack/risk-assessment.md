@@ -92,6 +92,12 @@ function changes, and on what you decide from the results.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | RISK-021 | Voiding is used to remove genuine misses, or a faulty planted error is voided selectively or not at all | Review looks better than it is, or people are judged unfairly | REQ-054 to REQ-058 | DEP-019, DEP-008, DEP-010 | High | The one feature that removes results from scores. The software cannot judge whether a reason is true, or who is typing | **[FILL]** |
 
+### Drafting from real output
+
+| ID | What could go wrong | Effect | Controls in the software | Your controls | Proposed | Why | Your rating and reason |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| RISK-022 | Real information enters `planted.db`, in a planted error drafted from real output or written by hand | Personal or confidential data is shown to reviewers and kept in backups, and **cannot be removed** without breaking the evidence | REQ-059 to REQ-064. They do nothing for a file written by hand, and the search finds only what it was told to | DEP-020, DEP-012, DEP-007, DEP-011 | High | It cannot be undone. A person reading the item is the real check | **[FILL]** |
+
 ## 3. Your own risks
 
 **[FILL: risks from your process, review screen, write function, target system,

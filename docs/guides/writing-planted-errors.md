@@ -23,8 +23,10 @@ could catch makes them seem worse. Both give you a wrong answer, so the writing 
    Keep your files and `planted.db` where reviewers cannot read them, and never in a shared or
    public repository.
 2. **No real data.** Use synthetic or de-identified values, modelled on what real items look like.
-   Do not paste a real item into a file. ReviewProof stores planted errors in full, and cannot
-   tell whether a value is real.
+   Do not paste a real item into a file. ReviewProof stores planted errors in full, cannot tell
+   whether a value is real, and **cannot take one out of `planted.db` once imported.** If your
+   organisation allows you to start from real output, use
+   [`rp craft`](#drafting-from-real-output-rp-craft), which de-identifies it before import.
 3. **Never use the public examples.** The files under
    [`examples/`](../../examples/deviation_triage/planted/) are published. Anyone can read them, and
    a lightly edited copy is no safer.
@@ -244,6 +246,161 @@ write_draft(draft, "PE-0007.yaml")  # never overwrites an existing file
 
 **A draft is not ready to use.** It is a copy of its source, with the same identifiers, dates and
 rationale. Work through the checklist at the top of the file before importing it.
+
+## Drafting from real output (`rp craft`)
+
+Items drafted from what your AI system really produced keep its style, length and typical
+content. [`rp craft`](../cli.md#rp-craft-start) turns an item **you export** into a planted-error
+file: it replaces identifiers, shifts dates, searches what you are about to import for real
+data, and records who checked it. A person still chooses the defect.
+
+> **It cannot make an item anonymous.** It finds what your handling profile and your list of
+> blocked terms tell it to find, and nothing else. **What enters `planted.db` cannot be taken
+> out:** deleting it is refused, retiring it leaves its content in the file, and removing it by
+> force after use breaks verification. It is also shown to reviewers and held in backups. So a
+> person must read the whole item before it is imported.
+
+### Before you start
+
+- **Permission.** Your organisation must have decided that real output may be used this way, and
+  how the files are protected and destroyed. Removing identifiers can leave details that point
+  to a person or an event, and such data may still be personal or confidential.
+- **Which outputs may be used.** For example, how old they must be, and that nobody who reviews
+  on the queue worked on them. The tool cannot know who saw an original.
+- **Only correct originals.** An approved item is not proof of a correct one: whether approvals
+  can be trusted is what you are testing. Someone other than the author must confirm that the
+  original was correct. A defect added to a wrong item gives it two.
+- **Where you work.** Run the tool where reviewers cannot see, and keep exports, profiles that
+  list names, and working files out of shared folders and version control.
+
+### The export
+
+A `.json` file holding a list of items, each in your queue's item format **and nothing more**.
+Export broadly, for example every item from a period, not only the one you will use: a value
+that is replaced in any exported item is searched for in your draft, because free text often
+mentions another record.
+
+### The handling profile
+
+One per queue, kept under change control. **Every property of the item format must be listed,**
+or nothing is made. The [demo's profile](../../examples/deviation_triage/handling.yaml):
+
+```yml
+queue: deviation-triage
+properties:
+  deviation_id: {handling: replace, pattern: "DEV-2027-{4 digits}"}
+  occurred_on: shift_date
+  product: keep
+  lot_number: replace
+  process_step: keep
+  description: review
+  classification: keep
+  classification_rationale: review
+  root_cause: review
+  immediate_actions: review
+  capa_required: keep
+blocked_terms:
+  - Example Site North
+  - Invented Supplier Ltd
+```
+
+| Handling | Use it for | What happens |
+| --- | --- | --- |
+| `replace` | Identifiers: record, lot, subject and similar numbers | You give a new value with `--set NAME=VALUE`, or a `pattern` makes one with `{N digits}` and `{N letters}`. The old value is replaced everywhere in the item, free text included |
+| `shift_date` | Dates written `YYYY-MM-DD` | All move by `--shift-days`. The same dates written that way in text move too |
+| `keep` | Values that identify no person and no record | Copied. **Listing a property here is your decision that it is safe** |
+| `review` | Free text, lists and nested objects | Copied, searched, and warned about. **Read it** |
+
+`blocked_terms` lists what must never appear: names of people, sites, suppliers, customers,
+products or anything else. **The tool cannot guess them.** If there are none, write `[]`.
+
+Use patterns and new values from a range your numbering will never issue. ReviewProof cannot
+check that. Choose a value that fits your rules: a lot number from another product's series,
+say, would be a second defect.
+
+### The steps
+
+```bash
+rp craft start  --profile handling.yaml --export export.json --item 12 \
+  --id PE-0014 --author YOUR-ID --set lot_number=NEW-NUMBER --shift-days 211 --out work.yaml
+rp craft defect --profile handling.yaml --export export.json --work work.yaml \
+  --mutator classification-flip --field classification --to major --out work-2.yaml
+rp craft check  --profile handling.yaml --export export.json --work work-2.yaml
+rp craft finish --profile handling.yaml --export export.json --work work-2.yaml \
+  --source-confirmed-by ID --checked-for-real-data-by ID \
+  --acknowledge CODE --acknowledge CODE --out PE-0014.yaml
+```
+
+1. **`start`** writes a **working file**. It may still hold real information, and it cannot be
+   imported. Never type a real value into a command: terminals keep what you type.
+2. **Add exactly one defect,** with `rp craft defect` (value swap, omission or class change) or
+   by editing the working file. Then [make it look real](#making-it-look-real): reword what no
+   longer fits, and rewrite free text in your own words where it describes a particular event.
+3. **`check`** lists what stops the draft and what needs your attention. It names properties
+   and kinds of problem, **never the value it found.**
+
+   | Stops it | Needs an acknowledgment |
+   | --- | --- |
+   | A `replace` value from any exported item | Text that looks like an email address, telephone number, date or long number |
+   | A blocked term | Sentences copied unchanged from the original |
+   | An original date from a `shift_date` property of this item | A changed classification whose explanation was not reworded |
+   | A change to a `replace`, `shift_date` or `keep` property other than the defect | |
+   | No change in the defect field, or anything import would refuse | |
+
+   The search covers the whole item, `correct_value`, `notes`, the ID and the author. The
+   warnings cover `review` properties, the defect field, `correct_value` and `notes`.
+
+4. **`finish`** writes the planted-error file. Each warning must be acknowledged by its code,
+   which covers the exact text: if you edit the text, read it again. Two checks must name
+   someone other than the author, and one person may do both:
+   - `--source-confirmed-by`: confirmed that **the original was correct** under your
+     procedures;
+   - `--checked-for-real-data-by`: **read the whole finished item** and found no real
+     information.
+
+   ReviewProof cannot verify who is typing. Keep both signatures in your quality system.
+
+Then [import and approve it](#loading-and-approval). Approvers also confirm that they find no
+real information. **Destroy the export and working files** as your procedure says: the tool
+never changes or deletes them.
+
+### What the search finds, and what it misses
+
+It ignores capital letters, spaces, hyphens and dashes, underscores, line breaks, accents,
+invisible characters and full-width forms. So `LOT-C66554` is also found as `lot c66554`,
+`LOTC66554` or inside a longer word. A value of fewer than four characters must stand as a
+whole word.
+
+**It does not find** these, among others. Each is in the tool's own tests as a miss:
+
+| You listed | Written as |
+| --- | --- |
+| `LOT-C66554` | `batch C66554` (part of it), `LOT.C66554` or `LOT/C66554`, `LOT-C66545` (a typing mistake), a look-alike letter from another alphabet, or split between two properties |
+| `Marta Quillfeather` | `Quillfeather`, `M. Quillfeather`, or a misspelling. List surnames too |
+| A short word such as `Ose` | Inside another word |
+| Nothing | Any name, place or detail nobody listed |
+
+It also cannot see meaning: "the night shift lead on line 3" may point to one person without
+naming anyone.
+
+### What is recorded
+
+A finished file has a `provenance` entry: that it came from real output, who confirmed the
+source, who checked for real data, when, and the tool's version. It cannot be changed after
+import, and the log's fingerprint of the planted error covers it. `rp plant list` marks such
+planted errors `[from real output]`, and the validation pack's
+[register](../../validation-pack/sop-planted-errors.md#9-realism-rotation-and-changes) lists
+them with both names. **Nothing that identifies the original is kept,** so keep no link to it
+elsewhere either unless your rules require one.
+
+A file written by hand, or edited after `finish`, carries only what its writer puts in it.
+Nothing forces anyone to use this tool.
+
+### Keep a mix
+
+The helpers make value swaps, omissions and class changes easily. Unsupported claims, wrong
+targets and policy breaches need writing by hand. **If only the easy kinds get written, the
+catch rate measures the wrong thing.** Plan the mix before drafting.
 
 ## Loading and approval
 

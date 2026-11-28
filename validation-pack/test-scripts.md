@@ -186,7 +186,7 @@ Checks DEP-008 and DEP-009.
 For each, record the document and why it is enough. The procedure templates for the
 [planted-error program](sop-planted-errors.md),
 [reviewer qualification](sop-reviewer-qualification.md) and
-[metric review](sop-metric-review.md) are a start on DEP-012 to DEP-015 and DEP-019. A template is not
+[metric review](sop-metric-review.md) are a start on DEP-012 to DEP-015, DEP-019 and DEP-020. A template is not
 evidence until you have completed, approved and followed it.
 
 | Duty | Evidence to collect | Record |
@@ -198,3 +198,4 @@ evidence until you have completed, approved and followed it.
 | DEP-016 | The error-handling procedure, including who checks the target after a failed or unrecorded write | |
 | DEP-018 | The fixed versions, your representative test data and results, and the rule for testing again before a change |  |
 | DEP-019 | Who may request and confirm voids, how identity and signature are shown, and each void's quality record and metric review | |
+| DEP-020 | If used: the decision that real output may be used, the privacy assessment, which outputs qualify, each draft's two signed checks, and where its files were kept and when they were destroyed | |

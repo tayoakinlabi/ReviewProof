@@ -39,6 +39,7 @@ FIXED = [
     "author",
     "imported_at",
     "purpose",
+    "provenance",
 ]
 SET_ONCE = [
     "approved_by",

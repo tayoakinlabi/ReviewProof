@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Sequence
 
 from reviewproof import __version__
-from reviewproof.cli import plant, qualify, report, setup, verify
+from reviewproof.cli import craft, plant, qualify, report, setup, verify
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,6 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(title="commands", metavar="COMMAND")
     setup.add_parsers(subparsers)
     plant.add_parser(subparsers)
+    craft.add_parser(subparsers)
     qualify.add_parser(subparsers)
     report.add_parsers(subparsers)
     verify.add_parser(subparsers)

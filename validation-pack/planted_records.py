@@ -2,7 +2,9 @@
 
     python validation-pack/planted_records.py register planted.db
 
-Every planted error: who wrote, approved and retired it, when, and why. It shows no content.
+Every planted error: who wrote, approved and retired it, when, and why, and for one drafted
+from real output, who confirmed the original and who checked it for real data. It shows no
+content.
 
     python validation-pack/planted_records.py uses PE-0001 oversight.db planted.db
 
@@ -53,6 +55,9 @@ REGISTER = (
     "retired_by",
     "retired_at",
     "retire_reason",
+    "origin",
+    "source_confirmed_by",
+    "checked_for_real_data_by",
 )
 USES = ("time_utc", "use", "reference", "reviewer", "what_happened", "decision", "scored_as")
 
@@ -77,12 +82,21 @@ _EVENTS = (
 )
 
 
+#: The last columns of the register come from the provenance of one drafted from real output.
+_FROM_PROVENANCE = ("origin", "source_confirmed_by", "checked_for_real_data_by")
+
+
 def register(planted: Path) -> list[tuple]:
     with closing(open_readonly(planted, "planted")) as db:
-        columns = ", ".join(REGISTER)
-        return [
-            tuple(row) for row in db.execute(f"SELECT {columns} FROM planted_errors ORDER BY rowid")
-        ]
+        columns = ", ".join(REGISTER[: -len(_FROM_PROVENANCE)])
+        present = {row[1] for row in db.execute("PRAGMA table_info(planted_errors)")}
+        # A database not yet upgraded has no provenance.
+        provenance = "provenance" if "provenance" in present else "NULL"
+        rows = []
+        for row in db.execute(f"SELECT {columns}, {provenance} FROM planted_errors ORDER BY rowid"):
+            origin = json.loads(row[-1]) if row[-1] else {}
+            rows.append((*tuple(row)[:-1], *(origin.get(name) for name in _FROM_PROVENANCE)))
+        return rows
 
 
 def voids(oversight: Path, planted: Path) -> list[tuple]:

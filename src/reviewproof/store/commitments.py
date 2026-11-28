@@ -41,8 +41,16 @@ def new_salt() -> bytes:
 
 
 def planted_fingerprint(columns: Mapping[str, Any]) -> str:
-    """Hash a ``planted_errors`` row as stored: content, scoring rules and approvals."""
-    return sha256_hex(canonical_json([columns[name] for name in FINGERPRINT_COLUMNS]))
+    """Hash a ``planted_errors`` row as stored: content, scoring rules and approvals, and its
+    provenance if it has one (ADR-009).
+
+    Provenance is added only when present, so that the fingerprint of every other planted
+    error, and so every log made before provenance existed, is unchanged.
+    """
+    values = [columns[name] for name in FINGERPRINT_COLUMNS]
+    if columns.get("provenance") is not None:
+        values.append(["provenance", columns["provenance"]])
+    return sha256_hex(canonical_json(values))
 
 
 def planted_commitment(
