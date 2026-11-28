@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="912" viewBox="0 0 960 912" role="img" aria-labelledby="t d">
+<title id="t">ReviewProof architecture</title>
+<desc id="d">Your application submits an agent&#x27;s proposal. ReviewProof&#x27;s gate may add a planted error and returns one or two tickets for your review screen. The recorder logs each showing and one decision. The guard calls your writer function only if every check passes. Reviewers have no access to either file: planted.db is the restricted one and oversight.db holds the hash-chained log. rp craft and rp plant prepare planted errors; verified evidence feeds reports and alerts.</desc>
+<defs>
+<marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#566a80"/></marker>
+<marker id="back" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M10 0L0 5L10 10z" fill="#566a80"/></marker>
+</defs>
+<rect width="960" height="912" fill="#ffffff"/>
+<text x="134" y="34" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#46566a" font-weight="700" text-anchor="middle">YOUR APPLICATION</text>
+<text x="502" y="34" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#2f6fbd" font-weight="700" text-anchor="middle">REVIEWPROOF  (a library inside it)</text>
+<text x="838" y="34" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#46566a" font-weight="700" text-anchor="middle">ITS TWO FILES</text>
+<text x="838" y="56" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" fill="#46566a" font-weight="400" text-anchor="middle">reviewers: no access to either</text>
+<rect x="24" y="66" width="220" height="62" rx="9" fill="#ffffff" stroke="#7d8ea3" stroke-width="1.6"/>
+<text x="134.0" y="93.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="0">AI agent</text>
+<text x="134.0" y="113.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="0">proposes an item</text>
+<rect x="24" y="196" width="220" height="78" rx="9" fill="#ffffff" stroke="#7d8ea3" stroke-width="1.6"/>
+<text x="134.0" y="222.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="1">Your review screen</text>
+<text x="134.0" y="242.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="1">and queue: your</text>
+<text x="134.0" y="260.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="1">people decide</text>
+<rect x="24" y="458" width="220" height="62" rx="9" fill="#ffffff" stroke="#7d8ea3" stroke-width="1.6"/>
+<text x="134.0" y="485.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="2">Your writer function</text>
+<text x="134.0" y="505.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="2">writes to your target system</text>
+<rect x="366" y="50" width="272" height="474" rx="12" fill="none" stroke="#2f6fbd" stroke-width="1.4" stroke-dasharray="6 5"/>
+<rect x="388" y="66" width="228" height="76" rx="9" fill="#e8f1fd" stroke="#2f6fbd" stroke-width="1.6"/>
+<text x="502.0" y="91.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="3">Gate</text>
+<text x="502.0" y="111.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="3">sometimes adds</text>
+<text x="502.0" y="129.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="3">a planted error</text>
+<rect x="388" y="196" width="228" height="78" rx="9" fill="#e8f1fd" stroke="#2f6fbd" stroke-width="1.6"/>
+<text x="502.0" y="222.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="4">Recorder</text>
+<text x="502.0" y="242.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="4">logs each showing and</text>
+<text x="502.0" y="260.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="4">one decision per item</text>
+<rect x="388" y="316" width="228" height="186" rx="9" fill="#e8f1fd" stroke="#2f6fbd" stroke-width="1.6"/>
+<text x="502.0" y="360.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="5">Guard</text>
+<text x="502.0" y="380.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="5">decision is approve or edit?</text>
+<text x="502.0" y="398.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="5">no earlier try to execute?</text>
+<text x="502.0" y="416.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="5">log entries intact?</text>
+<text x="502.0" y="434.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="5">registered as real?</text>
+<text x="502.0" y="452.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="5">content as approved?</text>
+<text x="502.0" y="470.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="5">target ID not reserved?</text>
+<rect x="736" y="82" width="204" height="138" rx="9" fill="#fff1da" stroke="#b86e00" stroke-width="1.6"/>
+<text x="838.0" y="120.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="6">planted.db</text>
+<text x="838.0" y="140.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="6">planted errors, and</text>
+<text x="838.0" y="158.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="6">which items are planted</text>
+<text x="838.0" y="176.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="6">RESTRICTED: only the</text>
+<text x="838.0" y="194.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="6">app and QA may write</text>
+<rect x="736" y="336" width="204" height="138" rx="9" fill="#eaf6ec" stroke="#2e7d4f" stroke-width="1.6"/>
+<text x="838.0" y="374.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="7">oversight.db</text>
+<text x="838.0" y="394.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="7">hash-chained log</text>
+<text x="838.0" y="412.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="7">of review steps</text>
+<text x="838.0" y="430.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="7">real items: salted</text>
+<text x="838.0" y="448.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="7">hashes, no content</text>
+<path d="M 244 97 L 388 97" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<text x="305" y="89" font-family="Consolas, 'SFMono-Regular', Menlo, 'DejaVu Sans Mono', monospace" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="middle">submit(item)</text>
+<path d="M 388 128 L 330 128 L 330 212 L 244 212" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<text x="316" y="168" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="end">1 or 2</text>
+<text x="316" y="184" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="end">tickets</text>
+<path d="M 244 244 L 388 244" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<text x="316" y="236" font-family="Consolas, 'SFMono-Regular', Menlo, 'DejaVu Sans Mono', monospace" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="middle">shown()</text>
+<text x="316" y="262" font-family="Consolas, 'SFMono-Regular', Menlo, 'DejaVu Sans Mono', monospace" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="middle">decided()</text>
+<path d="M 134 274 L 134 352 L 388 352" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<text x="146" y="322" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="start">after approve or edit:</text>
+<text x="146" y="342" font-family="Consolas, 'SFMono-Regular', Menlo, 'DejaVu Sans Mono', monospace" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="start">execute()</text>
+<path d="M 388 489 L 244 489" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<text x="316" y="462" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="middle">only if every</text>
+<text x="316" y="478" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="middle">check passes</text>
+<path d="M 638 151 L 736 151" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)" marker-start="url(#back)"/>
+<text x="687" y="142" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="middle">read, write</text>
+<path d="M 638 405 L 736 405" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)" marker-start="url(#back)"/>
+<text x="687" y="396" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" fill="#16202c" font-weight="400" text-anchor="middle">read, write</text>
+<line x1="20" y1="546" x2="940" y2="546" stroke="#d5dde6"/>
+<text x="24" y="572" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" fill="#16202c" font-weight="700" text-anchor="start">PREPARE</text>
+<text x="936" y="572" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="end">QA and an engineer, where reviewers cannot see</text>
+<rect x="24" y="592" width="190" height="52" rx="9" fill="#ffffff" stroke="#7d8ea3" stroke-width="1.6"/>
+<text x="119.0" y="623.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="8">Files you write</text>
+<rect x="24" y="662" width="190" height="52" rx="9" fill="#ffffff" stroke="#7d8ea3" stroke-width="1.6"/>
+<text x="119.0" y="693.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="9">Items you export</text>
+<rect x="280" y="662" width="200" height="52" rx="9" fill="#e8f1fd" stroke="#2f6fbd" stroke-width="1.6"/>
+<text x="380.0" y="684.0" font-family="Consolas, 'SFMono-Regular', Menlo, 'DejaVu Sans Mono', monospace" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="10">rp craft</text>
+<text x="380.0" y="704.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="10">opens neither database</text>
+<rect x="540" y="662" width="112" height="52" rx="9" fill="#ffffff" stroke="#7d8ea3" stroke-width="1.6"/>
+<text x="596.0" y="693.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="11">A file</text>
+<rect x="484" y="592" width="240" height="52" rx="9" fill="#e8f1fd" stroke="#2f6fbd" stroke-width="1.6"/>
+<text x="604.0" y="614.0" font-family="Consolas, 'SFMono-Regular', Menlo, 'DejaVu Sans Mono', monospace" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="12">rp plant</text>
+<text x="604.0" y="634.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="12">import, then approve</text>
+<rect x="790" y="592" width="150" height="52" rx="9" fill="#fff1da" stroke="#b86e00" stroke-width="1.6"/>
+<text x="865.0" y="623.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="13">planted.db</text>
+<path d="M 214 618 L 484 618" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<path d="M 214 688 L 280 688" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<path d="M 480 688 L 540 688" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<path d="M 596 662 L 596 644" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<path d="M 724 618 L 790 618" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<line x1="20" y1="740" x2="940" y2="740" stroke="#d5dde6"/>
+<text x="24" y="766" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" fill="#16202c" font-weight="700" text-anchor="start">REPORT</text>
+<text x="936" y="766" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="end">calculated only from evidence that verifies</text>
+<rect x="24" y="784" width="190" height="58" rx="9" fill="#eaf6ec" stroke="#2e7d4f" stroke-width="1.6"/>
+<text x="119.0" y="818.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="14">Both files</text>
+<rect x="262" y="784" width="150" height="58" rx="9" fill="#e8f1fd" stroke="#2f6fbd" stroke-width="1.6"/>
+<text x="337.0" y="809.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="15">Verify</text>
+<text x="337.0" y="829.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="15">the evidence</text>
+<rect x="460" y="784" width="190" height="58" rx="9" fill="#e8f1fd" stroke="#2f6fbd" stroke-width="1.6"/>
+<text x="555.0" y="809.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="16">Figures</text>
+<text x="555.0" y="829.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="middle" data-box="16">and thresholds</text>
+<rect x="704" y="776" width="236" height="34" rx="9" fill="#e8f1fd" stroke="#2f6fbd" stroke-width="1.6"/>
+<text x="822.0" y="798.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="17">rp report (HTML, CSV)</text>
+<rect x="704" y="818" width="236" height="34" rx="9" fill="#e8f1fd" stroke="#2f6fbd" stroke-width="1.6"/>
+<text x="822.0" y="840.0" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" fill="#16202c" font-weight="700" text-anchor="middle" data-box="18">rp alerts (email, webhook)</text>
+<path d="M 214 813 L 262 813" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<path d="M 412 813 L 460 813" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<path d="M 650 804 L 676 804 L 676 793 L 704 793" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<path d="M 650 822 L 676 822 L 676 835 L 704 835" fill="none" stroke="#566a80" stroke-width="1.7" marker-end="url(#head)"/>
+<line x1="20" y1="866" x2="940" y2="866" stroke="#d5dde6"/>
+<text x="24" y="892" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#46566a" font-weight="400" text-anchor="start">Also: rp qualify tests a reviewer away from the live queue.  rp plant void (two people) removes a faulty planted error&#x27;s results.</text>
+</svg>

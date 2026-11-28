@@ -27,57 +27,7 @@ records every review step in a tamper-evident log. It then reports how many were
 ReviewProof is a library that runs inside your application. It sits around the approval step you
 already have, and keeps its records in two SQLite files.
 
-```text
-  YOUR APPLICATION                   REVIEWPROOF                      ITS TWO FILES
-
-  AI agent proposes an item
-         |                      +---------------------+          +----------------------+
-         |  submit(item)        | GATE                |          | planted.db           |
-         +--------------------> | sometimes adds a    | <------> | RESTRICTED           |
-         |                      | planted error       |          |                      |
-         | <------------------- +---------------------+          | planted errors       |
-         |  1 or 2 tickets                                       | which items are real |
-         v                                                       | and which planted    |
-  Your review queue             +---------------------+          +----------------------+
-  and screen (people)           | RECORDER            |
-         |  shown(), decided()  | one decision for    |          +----------------------+
-         +--------------------> | each item           |          | oversight.db         |
-         |                      +---------------------+ -------> |                      |
-         |                                                       | hash-chained log of  |
-         |  execute(token,      +---------------------+          | every step           |
-         |    payload, writer)  | GUARD               | <------> |                      |
-         +--------------------> | checks, then acts   |          | no content of real   |
-                                +---------------------+          | items, only hashes   |
-                                           |                     +----------------------+
-                                           |  only if every check passes
-                                           v
-  Your writer function  <------------------+
-  writes to your target system
-```
-
-The guard also reads `planted.db`, and each part writes its steps to the log.
-
-The other parts run away from the review path. All but `rp craft` work on the same two files:
-
-```text
-  PREPARE  (QA and an engineer, where reviewers cannot see)
-
-    files you write -----------------------> rp plant import, approve --> planted.db
-    items you export --> rp craft --> a file ---^
-                         (opens neither database)
-
-  LEARN FROM IT  (the QA lead)
-
-    oversight.db --+                                       +--> rp report (HTML, CSV)
-                   +--> verify --> metrics --> thresholds -+
-    planted.db ----+                                       +--> rp alerts (email, webhook)
-
-  CHECK AND CORRECT
-
-    rp verify        check the log for changes; limits are under "Choices that shape it"
-    rp qualify       test one reviewer, away from the live queue
-    rp plant void    two people remove a faulty planted error's results; reports say so
-```
+![ReviewProof architecture. Your application submits an agent's proposal. The gate may add a planted error and returns one or two tickets for your review screen. The recorder logs each showing and one decision. The guard calls your writer function only if every check passes. planted.db and oversight.db are closed to reviewers. rp craft and rp plant prepare planted errors, and verified evidence feeds reports and alerts.](https://raw.githubusercontent.com/tayoakinlabi/ReviewProof/v0.2.0/docs/images/architecture.svg)
 
 ### The life of an item
 
