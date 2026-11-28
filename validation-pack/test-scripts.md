@@ -83,7 +83,7 @@ planted; give a second person the screen without that knowledge.
 
 | Step | Do | Expected result | Actual | Pass? |
 | --- | --- | --- | --- | --- |
-| 1 | Inspect the queue's list, sorting, filters and counts. | Nothing shows when a ticket arrived, which arrived together, or the order of arrival. | | |
+| 1 | Inspect the queue's list, sorting, filters and counts. | Nothing shows when a ticket arrived, which arrived together, or the order of arrival. No count of items waiting, in a batch, decided or saved is shown anywhere the reviewer can reach. | | |
 | 2 | Open real and planted tickets side by side, including every panel, link and export. | Each shows only what its ticket holds. No source, history, trace or record appears for some and not others. | | |
 | 3 | Look at network traffic, page source and anything else the reviewer can reach. | No field, ID format or response differs by kind. | | |
 | 4 | Approve one of each, and compare what follows. | The screens, messages and timing a reviewer can see are the same. | | |

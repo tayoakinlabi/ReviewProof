@@ -191,7 +191,7 @@ in the report, and run `rp plant list`:
 
 | Sign | Meaning | Action |
 | --- | --- | --- |
-| "Times a planted error was due but none could be used" is above 0 | The queue ran short, so fewer were released than the settings say | Add planted errors. Look for items waiting long for a decision: a planted error is not released again while a copy waits |
+| "Times a planted error was due but none could be used" is above 0 | The queue ran short, so fewer were released than the settings say. **Some can be ready while none can be used:** a planted error is not used while a copy of it waits for a decision, or, if your application named the reviewer, for a person who has already had it. The report does not know which reason applied each time | Add planted errors. Look for items waiting long for a decision |
 | Ready ones below the restock level | Shortage coming | Write and approve more |
 | "Held back", or `held back:` in the list | It no longer fits the item format | Retire it, and write a replacement |
 | Repeat sightings rising | Reviewers are meeting the same ones | Add and rotate |

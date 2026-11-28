@@ -16,6 +16,11 @@ ReviewProof cannot enforce most of these. Your application must.
 3. **Queue every ticket `submit()` returns**, and treat them all the same.
 4. **Do not let reviewers see which items arrived together.** When two arrive at once, one is
    planted. Show no arrival times, and mix new items among those already waiting.
+
+   **Show no counts of items:** waiting, in a batch, decided or saved. A count that includes
+   planted items can be compared with the number of real ones, which shows how many are planted.
+   A count that leaves them out does not change when a reviewer decides a planted item, which
+   shows which one it was. A reviewer can still count for themselves; this removes the easy ways.
 5. **Show only what is in `ticket.payload`.** A planted item has no agent trace, retrieved
    sources or record history. If your screen shows such things for real items, every planted one
    stands out. In v1, a queue whose screen must show them cannot use planted errors.

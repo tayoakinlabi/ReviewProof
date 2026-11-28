@@ -179,7 +179,7 @@ explain why, see the [design records](../docs/adr/) and the
 | --- | --- | --- |
 | DEP-001 | Make every write of a reviewed item go through ReviewProof's guard, and give no agent or code path your raw write function. **Test this in your own environment: a planted error approved on your review screen never reaches your target system.** | **[FILL]** |
 | DEP-002 | Make your write function or target system reject target IDs in the reserved range. This guards against a fault in ReviewProof, not against code that goes round it. | **[FILL]** |
-| DEP-003 | Queue every ticket, and never show reviewers which tickets arrived together, when each arrived, or the order they arrived in. | **[FILL]** |
+| DEP-003 | Queue every ticket, and never show reviewers which tickets arrived together, when each arrived, or the order they arrived in. Show them no counts of items waiting, in a batch, decided or saved, whether or not planted items are in the count. | **[FILL]** |
 | DEP-004 | Show a reviewer nothing about an item except what its ticket holds. If your screen must show more, such as sources or history, do not use planted errors on that queue. | **[FILL]** |
 | DEP-005 | Keep reviewers from watching the agent's traces, saved state and logs, the target system as it changes, and whether the agent continues after a decision, including through when new items arrive, while items are waiting. | **[FILL]** |
 | DEP-006 | Show reviewers nothing different when the guard blocks an item, and keep server-side status results away from them. | **[FILL]** |

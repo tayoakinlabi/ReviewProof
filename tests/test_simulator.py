@@ -112,3 +112,88 @@ def test_the_clock_only_goes_forward():
         clock.move_to(datetime(2026, 3, 2, tzinfo=timezone.utc))
     with pytest.raises(ValueError, match="timezone"):
         SimulatedClock(datetime(2026, 3, 2))
+
+
+# ----------------------------------------------------------------- reword (ADR-010)
+
+EDITOR = Profile("editor", 10, 0.1, 1.0, edit_real=1.0)
+
+
+def editor(seed=1, **arguments):
+    return SimulatedReviewer("r", EDITOR, [planted_error()], random.Random(seed), **arguments)
+
+
+def changed_by(person, item):
+    decision, final = person.judge(item)
+    assert decision is Decision.EDIT and set(final) == set(item)
+    return [name for name in item if final[name] != item[name]]
+
+
+def test_without_reword_the_longest_text_of_all_is_changed():
+    item = {"short": "ab", "request": "a much longer piece of text", "reply": "middling text"}
+    assert changed_by(editor(), item) == ["request"]
+
+
+def test_only_a_property_named_by_reword_is_changed():
+    names = ("description", "root_cause")
+    person = editor(reword=names)
+    for item in ITEMS:
+        longest = max(names, key=lambda name: len(item[name]))
+        assert changed_by(person, item) == [longest]
+
+
+def test_the_longest_named_text_is_changed_even_if_another_is_longer():
+    item = {"request": "by far the longest text in this item", "reply": "a reply", "note": "n"}
+    assert changed_by(editor(reword=["reply", "note"]), item) == ["reply"]
+
+
+def test_a_name_the_item_lacks_or_a_value_that_is_not_text_is_passed_over():
+    item = {"count": 12345678, "reply": "a reply", "request": "the longer request text"}
+    assert changed_by(editor(reword=("missing", "count", "reply")), item) == ["reply"]
+
+
+def test_reword_takes_any_collection_of_names_once():
+    names = (name for name in ["reply"])  # a generator can be read only once
+    person = editor(reword=names)
+    item = {"request": "the longer request text", "reply": "a reply"}
+    assert [changed_by(person, item) for _ in range(3)] == [["reply"]] * 3
+
+
+@pytest.mark.parametrize(
+    ("reword", "message"),
+    [
+        ([], "at least one"),
+        ("reply", "not one string"),
+        ([""], "at least one"),
+        (["reply", 3], "at least one"),
+    ],
+)
+def test_a_reword_that_names_nothing_usable_is_refused(reword, message):
+    with pytest.raises(ValueError, match=message):
+        editor(reword=reword)
+
+
+@pytest.mark.parametrize("item", [{"request": "text"}, {"reply": 7, "request": "text"}])
+def test_an_item_with_no_text_in_a_named_property_is_refused(item):
+    with pytest.raises(ValueError, match="no text to edit in any property named by reword"):
+        editor(reword=["reply"]).judge(item)
+
+
+@pytest.mark.parametrize("expected", ["edit:classification", "reject"])
+def test_planted_errors_are_judged_the_same_with_or_without_reword(expected):
+    def judgments(**arguments):
+        person = SimulatedReviewer(
+            "r", CAREFUL, [planted_error(expected)], random.Random(5), **arguments
+        )
+        return [person.judge(PLANTED_PAYLOAD) for _ in range(200)]
+
+    assert judgments(reword=["description"]) == judgments()
+
+
+def test_reword_changes_no_decision_only_what_an_edit_touches():
+    def decisions(**arguments):
+        person = SimulatedReviewer("r", CAREFUL, [planted_error()], random.Random(9), **arguments)
+        return [person.judge(ITEMS[i % 20])[0] for i in range(600)]
+
+    assert decisions(reword=["root_cause"]) == decisions()
+    assert Decision.EDIT in decisions()

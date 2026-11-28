@@ -414,3 +414,67 @@ def test_a_report_on_an_empty_deployment(deployment):
     assert "Nothing is outside its limit among the measures that can be judged." in text
     assert "No decisions yet." in text
     assert json.dumps(rows(report))
+
+
+# ----------------------------------------------------------------- shortages (ADR-010)
+
+NOTE = (
+    "Some can be ready while none can be used. A planted error is not used while a copy of it "
+    "waits for a decision, or, if your application named the reviewer, for a person who has "
+    "already had it. The report does not know which reason applied each time."
+)
+
+
+def one_planted_error(make):
+    deployment = make()
+    ov = deployment.open()
+    imported = ov.planted.import_file(sorted((golden_log.DEMO / "planted").glob("*.yaml"))[0])
+    ov.planted.approve(imported.planted_error_id, "qa-1")
+    ov.planted.approve(imported.planted_error_id, "qa-2")
+    return deployment, ov
+
+
+def programme_and_page(deployment):
+    projection = load(deployment.db, deployment.planted_db)
+    report = build(projection, deployment.config, deployment.planted_db)
+    return report.queues[0].programme, Text(html.render(report)).text
+
+
+def submit_until_short(ov, after):
+    """Submit items, calling ``after`` on each ticket, until a planted error was due and none
+    could be used.
+    """
+    for number in range(60):
+        for ticket in ov.submit(item(number % 20, deviation_id=f"DEV-2027-{number:04d}"), after[0]):
+            after[1](ticket)
+        if ov.gate_status().shortfalls:
+            return
+    raise AssertionError("no shortage came about")
+
+
+def test_the_page_has_no_shortage_note_when_there_was_no_shortage(make):
+    deployment, _ = one_planted_error(make)
+    programme, page = programme_and_page(deployment)
+    assert programme.shortfalls == 0 and "Some can be ready" not in page
+
+
+def test_a_waiting_copy_causes_a_shortage_while_one_is_ready_and_the_page_says_so(make):
+    deployment, ov = one_planted_error(make)
+    submit_until_short(ov, (None, lambda ticket: None))  # nothing is ever decided
+    programme, page = programme_and_page(deployment)
+    assert programme.usable_planted == 1 and programme.shortfalls >= 1
+    assert NOTE in page
+
+
+def test_a_named_reviewer_who_had_it_causes_one_too_and_the_page_says_so(make):
+    deployment, ov = one_planted_error(make)
+
+    def decide(ticket):
+        ov.shown(ticket.token, "r-1")
+        ov.decided(ticket.token, "r-1", "approve")
+
+    submit_until_short(ov, ("r-1", decide))  # every copy is decided: none is waiting
+    programme, page = programme_and_page(deployment)
+    assert programme.usable_planted == 1 and programme.pending == 0
+    assert programme.shortfalls >= 1
+    assert NOTE in page

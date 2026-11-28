@@ -462,9 +462,19 @@ def _programme(queue: QueueReport) -> str:
         ("Real executions that failed", str(health.failed_executions)),
     ]
     lines = "".join(f"<div>{name}: <strong>{value}</strong></div>" for name, value in rows)
+    shortage = ""
+    if health.shortfalls:
+        # Reasons, not the cause: only the queue and time of each shortage are recorded.
+        shortage = (
+            "<p class='small'>Some can be ready while none can be used. A planted error is not "
+            "used while a copy of it waits for a decision, or, if your application named the "
+            "reviewer, for a person who has already had it. The report does not know which "
+            "reason applied each time.</p>"
+        )
     return (
         "<h3>Health of the planted-error programme</h3>"
         f'<div class="cols">{lines}</div>'
+        + shortage
         + "<p class='small muted'>Ready, held-back and shortage figures come from the "
         "restricted database and settings, not from the verified log.</p>"
     )

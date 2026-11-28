@@ -3,6 +3,38 @@
 ReviewProof uses semantic versions. Before 1.0.0, any release may change the API or the
 database format. Each release says what a validated user would need to retest.
 
+## Unreleased
+
+Changes made while building a use case with made-up data. **No outside quality specialist has
+reviewed them, and they have not been tested with independent reviewers or on a real queue.**
+
+### Added
+
+- `SimulatedReviewer(..., reword=[...])` names the properties a simulated edit to a correct
+  proposal may change, so that a simulation does not rewrite text a reviewer never would, such
+  as an incoming request. Without it, behaviour is as before.
+
+### Changed
+
+- **Show reviewers no counts of items.** A count of items waiting, in a batch, decided or saved
+  can show how many items are planted, or which, whether or not planted items are in it. The
+  integration guide, deployment duty DEP-003 and test script MT-004 now say so. ReviewProof
+  cannot enforce it, and it has not been tested with reviewers.
+- When a planted error was due and none could be used, the HTML report and the planted-error
+  procedure now say how some can be ready while none can be used. They do not say why each
+  shortage happened: that is not recorded.
+
+See [ADR-010](docs/adr/0010-changes-from-the-first-use-case.md).
+
+### Change impact
+
+**No database change:** `oversight.db` and `planted.db` stay at schema version 4, and what the
+gate, guard and log do is unchanged. Code written for 0.2.0 is unaffected. A new HTML report
+with a shortage has the added note. **DEP-003 and MT-004 are stricter: if you adapted the
+validation pack, check your review screen again.** Many review tools show queue sizes. If yours
+does and you keep it, record that as a deviation from DEP-003 and assess what your results are
+worth.
+
 ## 0.2.0 (2026-11-28)
 
 Adds metrics and reports, reviewer qualification, voiding of faulty planted errors, drafting

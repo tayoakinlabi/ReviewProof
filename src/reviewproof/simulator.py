@@ -81,7 +81,22 @@ class SimulatedReviewer:
         profile: Profile,
         planted: Iterable[PlantedError],
         rng: random.Random,
+        *,
+        reword: Iterable[str] | None = None,
     ) -> None:
+        """``reword`` names the properties that a simulated edit to a **real** proposal may
+        change: the longest text among them gets a few more words. Without it, the longest text
+        of the whole item does. Name free-text properties only: the added words could break a
+        list of allowed values or a pattern, and the item format is not checked. Planted errors
+        are judged the same either way.
+        """
+        if reword is not None:
+            if isinstance(reword, str):
+                raise ValueError("reword must be a list of property names, not one string")
+            reword = frozenset(reword)
+            if not reword or not all(isinstance(name, str) and name for name in reword):
+                raise ValueError("reword must name at least one property")
+        self._reword = reword
         self.reviewer_id = reviewer_id
         self.profile = profile
         self._rng = rng
@@ -110,16 +125,19 @@ class SimulatedReviewer:
         if draw < profile.reject_real:
             return Decision.REJECT, None
         if draw < profile.reject_real + profile.edit_real:
-            return Decision.EDIT, _reworded(payload)
+            return Decision.EDIT, _reworded(payload, self._reword)
         return Decision.APPROVE, None
 
 
-def _reworded(payload: Mapping[str, Any]) -> dict[str, Any]:
-    """A small correction to a real proposal: the longest piece of text is changed."""
+def _reworded(payload: Mapping[str, Any], among: frozenset[str] | None = None) -> dict[str, Any]:
+    """A small correction to a real proposal: the longest piece of text is changed, or the
+    longest among the properties named in ``among``.
+    """
     edited = copy.deepcopy(dict(payload))
-    texts = [k for k, v in edited.items() if isinstance(v, str)]
+    texts = [k for k, v in edited.items() if isinstance(v, str) and (among is None or k in among)]
     if not texts:
-        raise ValueError("the item has no text to edit")
+        named = "" if among is None else " in any property named by reword"
+        raise ValueError(f"the item has no text to edit{named}")
     field = max(texts, key=lambda k: len(edited[k]))
     edited[field] += " (reworded)"
     return edited
