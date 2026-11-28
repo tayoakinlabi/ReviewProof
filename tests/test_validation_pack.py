@@ -150,7 +150,7 @@ def test_the_pack_runs_its_record_script_with_the_arguments_it_takes():
         for command in commands(path)
         if command[:2] == ["python", "validation-pack/planted_records.py"]
     ]
-    assert {(c[0], len(c)) for c in found} == {("register", 2), ("uses", 4)}
+    assert {(c[0], len(c)) for c in found} == {("register", 2), ("uses", 4), ("voids", 3)}
 
 
 def test_the_chances_of_passing_are_right():
@@ -175,6 +175,7 @@ def test_the_procedures_quote_the_software_s_default_limits_and_shares():
         f"Over {limits.agreement_rate_max:.0%} agreement",
         f"Catch rate {limits.fatigue_drop_max * 100:.0f} points lower",
         f"No individual score appears below {limits.individual_min_planted} planted errors",
+        f"than {limits.voided_share_max:.0%} of results are voided",
     ):
         assert quoted in review, quoted
     planted = " ".join(read("sop-planted-errors.md").split())

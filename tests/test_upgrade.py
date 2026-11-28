@@ -1,9 +1,11 @@
 """Upgrading databases of earlier schema versions: version 1, as released in 0.1.0, and
-version 2. ``oversight.db`` is now at version 3 and ``planted.db`` at version 2.
+later ones from the repository's source. ``oversight.db`` is now at version 4 and
+``planted.db`` at version 3.
 
-Version 2 rebuilds the event log table, and version 3 replaces the column that holds a queue's
-risk category. So these tests insist that no stored value or hash changes, and that a failed
-upgrade leaves everything as it was.
+Versions 2 and 4 rebuild the event log table, version 3 replaces the column that holds a
+queue's risk category, and version 3 of ``planted.db`` adds the void records. So these tests
+insist that no stored value or hash changes, and that a failed upgrade leaves everything as it
+was.
 """
 
 import dataclasses
@@ -49,7 +51,7 @@ def version_one(tmp_path, monkeypatch):
 
 
 #: The latest versions of oversight.db and planted.db.
-LATEST = (3, 2)
+LATEST = (4, 3)
 
 
 def upgrade_oversight(path):
@@ -247,6 +249,7 @@ def version_two(tmp_path, monkeypatch):
         (tmp_path / "v2").mkdir()
         with monkeypatch.context() as old:
             old.setattr(schema, "OVERSIGHT_MIGRATIONS", schema.OVERSIGHT_MIGRATIONS[:2])
+            old.setattr(schema, "PLANTED_MIGRATIONS", schema.PLANTED_MIGRATIONS[:2])
             deployment = Deployment(tmp_path / "v2", 0.2)
             made.append(deployment)
             deployment.config = with_category(deployment.config, category)
@@ -335,8 +338,9 @@ def test_a_version_2_database_is_not_upgraded_unasked(version_two):
     assert version(deployment.db) == 2
 
 
-def test_rp_init_upgrades_only_the_database_that_changed(version_two, capsys):
+def test_rp_init_upgrades_only_what_needs_it(version_two, capsys):
     deployment = version_two()
+    upgrade_planted(deployment.planted_db).close()  # only oversight.db is now behind
     files = ["--db", str(deployment.db), "--planted", str(deployment.planted_db)]
     assert main(["init", *files]) == 0
     out = capsys.readouterr().out
@@ -400,3 +404,116 @@ def test_new_and_upgraded_databases_have_the_same_queues_table(version_two, tmp_
     upgrade_oversight(deployment.db).close()
     create_oversight_db(tmp_path / "new.db").close()
     assert definition(deployment.db, "queues") == definition(tmp_path / "new.db", "queues")
+
+
+# ----------------------------------------------------------------- version 4 (ADR-008)
+
+
+@pytest.fixture
+def version_three(tmp_path, monkeypatch):
+    """Databases as the source had them before voiding: oversight.db 3, planted.db 2, with
+    reviews of real and planted items.
+    """
+    (tmp_path / "v3").mkdir()
+    with monkeypatch.context() as old:
+        old.setattr(schema, "OVERSIGHT_MIGRATIONS", schema.OVERSIGHT_MIGRATIONS[:3])
+        old.setattr(schema, "PLANTED_MIGRATIONS", schema.PLANTED_MIGRATIONS[:2])
+        deployment = Deployment(tmp_path / "v3", 0.5)
+        ov = deployment.open()
+        deployment.load_planted(ov)
+        for number in range(12):
+            for ticket in ov.submit(item(number)):
+                ov.shown(ticket.token, "r-1")
+                ov.decided(ticket.token, "r-1", "approve")
+        deployment.close()
+    for path in (deployment.db, deployment.planted_db):
+        with closing(sqlite3.connect(path)) as db:
+            db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    yield deployment
+    deployment.close()
+
+
+PLANTED_ROWS = "SELECT * FROM planted_errors ORDER BY planted_error_id"
+REGISTRY_ROWS = "SELECT * FROM item_registry ORDER BY item_id"
+
+
+@pytest.mark.req("REQ-046")
+def test_version_4_copies_the_log_exactly_and_changes_no_record(version_three):
+    deployment = version_three
+    with closing(schema.open_readonly(deployment.db, "oversight")) as db:
+        head = verify(db).head
+    before = (
+        events(deployment.db),
+        read(deployment.planted_db, PLANTED_ROWS),
+        read(deployment.planted_db, REGISTRY_ROWS),
+    )
+    assert (version(deployment.db), version(deployment.planted_db)) == (3, 2)
+
+    initialise(deployment.db, deployment.planted_db, upgrade=True)
+
+    assert (version(deployment.db), version(deployment.planted_db)) == LATEST
+    assert (
+        events(deployment.db),
+        read(deployment.planted_db, PLANTED_ROWS),
+        read(deployment.planted_db, REGISTRY_ROWS),
+    ) == before
+    result = deployment.verify()
+    assert result.ok and result.head == head and result.voids == {}
+    for path in (deployment.db, deployment.planted_db):
+        assert read(path, "PRAGMA integrity_check") == [("ok",)]
+        assert read(path, "PRAGMA foreign_key_check") == []
+
+
+def test_an_upgraded_database_takes_a_void(version_three):
+    deployment = version_three
+    initialise(deployment.db, deployment.planted_db, upgrade=True)
+    ov = deployment.open()
+    [(target,)] = read(
+        deployment.planted_db,
+        "SELECT planted_error_id FROM item_registry WHERE kind = 'planted' LIMIT 1",
+    )
+    voids = ov.voids()
+    voids.request(target, "qa-1", "not_defective", "why", "record")
+    voids.confirm(target, "qa-lead")
+    result = deployment.verify()
+    assert result.ok and list(result.voids) == [target]
+
+
+@pytest.mark.req("REQ-046")
+def test_a_version_3_database_is_not_upgraded_unasked(version_three):
+    deployment = version_three
+    before = deployment.db.read_bytes(), deployment.planted_db.read_bytes()
+    with pytest.raises(StoreError, match="schema version 3.*Back up both.*rp init"):
+        deployment.open()
+    with pytest.raises(StoreError, match="rp init"):
+        initialise(deployment.db, deployment.planted_db)
+    assert (deployment.db.read_bytes(), deployment.planted_db.read_bytes()) == before
+
+
+def test_a_version_3_database_can_be_verified_and_reported_on(version_three, tmp_path):
+    """planted.db has no void tables yet. Reading it must not need them."""
+    deployment = version_three
+    before = deployment.db.read_bytes(), deployment.planted_db.read_bytes()
+    files = ["--db", str(deployment.db), "--planted", str(deployment.planted_db)]
+    assert main(["verify", *files]) == 0
+    settings = ["--config", str(deployment.folder / "reviewproof.yaml")]
+    assert main(["report", *settings, *files, "--out", str(tmp_path / "r.html")]) == 0
+    assert "Voided planted errors" not in (tmp_path / "r.html").read_text(encoding="utf-8")
+    assert (deployment.db.read_bytes(), deployment.planted_db.read_bytes()) == before
+
+
+@pytest.mark.req("REQ-046")
+def test_a_log_not_copied_exactly_by_version_4_undoes_it(version_three, monkeypatch):
+    deployment = version_three
+    before = events(deployment.db), definition(deployment.db, "events")
+    fourth = list(schema.OVERSIGHT_MIGRATIONS[3])
+    fourth.insert(
+        fourth.index(schema._check_log_copied_again),
+        "UPDATE events_v4 SET system_id = 'altered' WHERE event_id = 3",
+    )
+    monkeypatch.setattr(schema, "OVERSIGHT_MIGRATIONS", (*schema.OVERSIGHT_MIGRATIONS[:3], fourth))
+    with pytest.raises(StoreError, match="not copied exactly"):
+        upgrade_oversight(deployment.db)
+    assert version(deployment.db) == 3
+    assert (events(deployment.db), definition(deployment.db, "events")) == before
+    assert read(deployment.db, "SELECT 1 FROM sqlite_master WHERE name = 'events_v4'") == []

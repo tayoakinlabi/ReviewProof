@@ -35,6 +35,7 @@ the [qualification procedure](sop-reviewer-qualification.md).
 | Author | Writing planted errors | **[FILL: required knowledge and training]** |
 | Approver | Judging each one. Never its author | **[FILL: required knowledge and training]** |
 | QA administrator | Running the commands, and controlling access to the files | **[FILL]** |
+| Void requester and confirmer | Two people who decide that a planted error was faulty (DEP-019). At least one neither wrote nor approved it, and neither reviews on the queue | **[FILL]** |
 
 Nobody who reviews on a queue writes, approves or can read that queue's planted errors.
 **[FILL: how you meet this where few people know the process, or why you cannot and what you do
@@ -120,7 +121,8 @@ Each approver checks the file independently, and records the result:
 
 A single "no" means rejection: correct it, and import it under a new ID if it was imported.
 **Never approve an item you doubt.** A planted error that is not really wrong counts good
-reviewers as missing it, and its results cannot be taken out again ([section 10](#10-a-planted-error-that-is-wrong-or-recognisable)).
+reviewers as missing it. Taking its results out again needs two people, is permanent, and shows
+in every report ([section 10](#10-a-planted-error-that-is-wrong-or-recognisable)).
 
 ReviewProof checks that approvers' names differ from the author's, and from each other where two
 are needed. **It cannot prove who typed a name.** The signature in **[FILL: your quality
@@ -191,30 +193,69 @@ that are no longer right.
 
 ## 10. A planted error that is wrong or recognisable
 
-This applies if a planted error was not really defective, had more than one defect, expected the
-wrong decision, or could be recognised by something other than its defect.
+**Retire it at once.** That stops further use. **Its past results stay in every score** until
+it is voided. Then decide which of these it is:
 
-1. **Retire it at once.**
-2. **Its past results remain in every score.** Retiring does not remove them, ReviewProof has no
-   way to exclude them, and reports do not name planted errors.
-3. Verify the records, then list everyone known to have been given, shown or to have
-   decided on it, including in qualification sessions:
+| What is wrong | Void it? |
+| --- | --- |
+| The item was correct (`not_defective`) | Yes |
+| It had more than one defect (`more_than_one_defect`) | Yes |
+| The expected decision, or the defect field, was not what procedures require (`wrong_expected_decision`) | Yes |
+| What was needed to find the defect was neither on screen nor in any record the reviewer is expected to check (`not_findable`) | Yes |
+| It could be recognised as planted by something other than its defect | **No.** Retire it, and record that catches on it may overstate attention |
+| It was hard, or many reviewers missed it | **No.** That is what the program measures |
+
+**Voiding removes all of its results, catches and misses alike, for everyone, and cannot be
+undone.** Nothing is deleted or scored again. It is the one action that removes results from
+scores, so treat every request as you would a request to change a result.
+
+1. Open **[FILL: a deviation or other quality record]**, with why the planted error is faulty.
+2. Verify the records, then list everyone known to have been given, shown or to have decided on
+   it, including in qualification sessions:
 
    ```bash
    rp verify --planted planted.db
    python validation-pack/planted_records.py uses PE-0001 oversight.db planted.db
    ```
 
-   A live copy with nothing recorded names a reviewer only if your application did. The
-   list shows what individuals did. Handle it under the
+   A live copy with nothing recorded names a reviewer only if your application did. The list
+   shows what individuals did. Handle it under the
    [privacy rules](sop-metric-review.md#9-reviewer-privacy-and-disclosure).
-4. Open **[FILL: a deviation or other quality record]**. Assess every report, decision and
-   qualification result that used it, and note the effect on each. A catch rate that includes it
-   is not corrected by ReviewProof: state the corrected reading beside the report.
-5. Take no decision about a person from a result it affected. Where it affected a qualification
-   result, decide on a new session with other items.
-6. If reviewers were given feedback on it, tell them what was wrong with the feedback.
-7. Find why approval missed it.
+3. **Look for every other planted error with the same fault**, such as others from the same
+   author, source or procedure reading, and decide them together, whether reviewers mostly
+   caught or missed them. Voiding only the ones mostly missed would make review look better
+   than it is. Record each decision.
+4. One person requests, and a different one confirms. At least one of the two neither wrote nor
+   approved it, and neither is recorded as a reviewer who met it. **[FILL: who may do each, how
+   their identity is shown, and their signatures in your quality system.]** ReviewProof cannot
+   verify who is typing.
+
+   ```bash
+   rp plant void PE-0001 --by REQUESTER-ID --reason not_defective --explanation "What is wrong" --reference RECORD-NUMBER
+   rp plant void-confirm PE-0001 --by CONFIRMER-ID
+   ```
+
+   If confirming fails partway, the same person runs it again. A request not yet in effect can
+   be dropped with `rp plant void-cancel PE-0001 --by YOUR-ID`.
+5. Check what is recorded. A void counts only when its state is `in_effect`:
+
+   ```bash
+   python validation-pack/planted_records.py voids oversight.db planted.db
+   ```
+
+6. For everyone who sat a session that held it, run `rp qualify status`. A pass now counts only
+   if its original mark is met without it. Tell anyone whose pass no longer counts, and follow
+   the [qualification procedure](sop-reviewer-qualification.md#7-after-a-session). That they
+   must sit again is not their fault.
+7. If reviewers were given feedback on it, tell them what was wrong with the feedback.
+   ReviewProof gives none that was still waiting.
+8. **Reports made before the void do not change.** Note the corrected reading beside each one
+   that used it, and reassess every decision made from them. Take no decision about a person
+   from a result it affected.
+9. Make a new report and read what was left out, and the "Voided results" check. **With few
+   results, the figures showing how voided results were decided are withheld, and the check
+   raises no alert.** The quality lead then reviews the void against the list from step 2.
+10. Find why approval missed it.
 
 **If a planted item ever reaches a target system,** stop using the integration, keep the
 databases as they are, and open **[FILL: your highest-priority quality record]**. Do not restart
@@ -225,7 +266,7 @@ MT-001, passes again.
 
 | Record | Where | Kept for |
 | --- | --- | --- |
-| Planted errors, approvals and retirements | `planted.db` | **[FILL]** |
+| Planted errors, approvals, retirements and voids | `planted.db`, and for each void in effect a commitment in `oversight.db` | **[FILL]** |
 | Signed approval checklists | **[FILL]** | **[FILL]** |
 | Settings and their change records | **[FILL]** | **[FILL]** |
 | Realism checks, retirements and restocking | **[FILL]** | **[FILL]** |

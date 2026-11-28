@@ -9,7 +9,7 @@ passed: for that, make a record from a test run, as the
 Nor does a tag show that the tests are enough for your use. The deployment duties have
 no tests here: they are yours to test.
 
-53 requirements, 207 tagged tests. A test may cover several requirements, and may run with several inputs.
+58 requirements, 263 tagged tests. A test may cover several requirements, and may run with several inputs.
 
 ## REQ-001
 
@@ -138,6 +138,8 @@ Before an item is decided, show nothing in `oversight.db`, in its errors or in i
   - `test_real_and_planted_rows_and_events_have_the_same_shape`
 - [`tests/test_schema.py`](../tests/test_schema.py)
   - `test_oversight_items_cannot_show_which_are_planted`
+- [`tests/test_voids.py`](../tests/test_voids.py)
+  - `test_voiding_while_a_copy_waits_gives_nothing_away_and_still_blocks_it`
 
 ## REQ-013
 
@@ -146,6 +148,8 @@ Never pass a planted item to the host's write function, whatever was decided abo
 - [`tests/gate1/test_planted_never_executes.py`](../tests/gate1/test_planted_never_executes.py)
   - `test_a_planted_error_edited_and_approved_is_not_executed`
   - `test_a_rubber_stamping_reviewer_cannot_get_a_planted_error_executed`
+- [`tests/test_voids.py`](../tests/test_voids.py)
+  - `test_voiding_while_a_copy_waits_gives_nothing_away_and_still_blocks_it`
 
 ## REQ-014
 
@@ -349,7 +353,7 @@ On verification with the restricted database, check that session items, answers 
 
 ## REQ-034
 
-Report a reviewer as qualified for a queue only if they passed a session that started after the queue's latest change of AI system version. (It reports this and does not stop anyone reviewing.)
+Report a reviewer as qualified for a queue only if they passed a session that started after the queue's latest change of AI system version, and only while they meet its pass mark without any voided planted error. (It reports this and does not stop anyone reviewing.)
 
 - [`tests/test_qualification.py`](../tests/test_qualification.py)
   - `test_a_change_during_a_session_means_it_does_not_count`
@@ -367,7 +371,7 @@ Show scores only when the evidence verifies. Otherwise show none and say why.
 
 ## REQ-036
 
-Work out catch rate as planted errors caught out of planted errors decided at the decider's first sight, leaving undecided ones out and reporting repeats separately, with a 95% Wilson interval.
+Work out catch rate as planted errors caught out of planted errors decided at the decider's first sight, leaving undecided and voided ones out and reporting repeats separately, with a 95% Wilson interval.
 
 - [`tests/test_checks.py`](../tests/test_checks.py)
   - `test_repeats_do_not_count`
@@ -404,7 +408,7 @@ Work out fast approvals, review time, agreement, workload and fatigue as the com
 
 ## REQ-039
 
-Judge each threshold as breached, met or not enough data, and never present not enough data as met.
+Judge each threshold as breached, met or not enough data, and never present not enough data, or a judgement withheld for privacy, as met.
 
 - [`tests/test_checks.py`](../tests/test_checks.py)
   - `test_classes_without_enough_data_are_not_judged`
@@ -412,7 +416,7 @@ Judge each threshold as breached, met or not enough data, and never present not 
 
 ## REQ-040
 
-Show individual results only when asked, and only from at least 10 first-sight planted errors, a minimum settings can raise but not lower; withhold a group figure that rests on one reviewer with fewer; and send alerts only to the QA lead, with queue-level findings only.
+Show individual results only when asked, and only from at least 10 first-sight planted errors, a minimum settings can raise but not lower; withhold a group figure that rests on one reviewer with fewer, including what voids left out and the figure that includes it; and send alerts only to the QA lead, with queue-level findings only.
 
 - [`tests/test_alerts.py`](../tests/test_alerts.py)
   - `test_email_to_the_qa_lead`
@@ -438,6 +442,14 @@ Show individual results only when asked, and only from at least 10 first-sight p
 - [`tests/test_reporting_config.py`](../tests/test_reporting_config.py)
   - `test_bad_routes`
   - `test_the_individual_minimum_can_only_be_raised`
+- [`tests/test_void_scoring.py`](../tests/test_void_scoring.py)
+  - `test_a_share_breach_is_still_said_because_it_is_only_counts`
+  - `test_for_one_reviewer_with_too_few_the_check_is_withheld_not_passed`
+  - `test_nothing_gives_away_scores_that_are_one_persons_by_subtraction`
+  - `test_the_check_says_nothing_about_a_counted_figure_that_is_one_persons`
+  - `test_voided_results_that_are_one_persons_are_withheld_with_the_figure_including_them`
+- [`tests/test_voids.py`](../tests/test_voids.py)
+  - `test_a_person_with_too_few_left_shows_nothing_about_what_was_voided`
 
 ## REQ-041
 
@@ -448,12 +460,14 @@ Name no item and no planted error in a report.
 
 ## REQ-042
 
-Give a reviewer feedback only on planted errors they decided, once each, at the time the queue's setting allows.
+Give a reviewer feedback only on planted errors they decided that have not been voided, once each, at the time the queue's setting allows.
 
 - [`tests/test_feedback.py`](../tests/test_feedback.py)
   - `test_a_batched_queue_waits_for_the_batch`
   - `test_each_reviewer_gets_their_own_in_decision_order`
   - `test_feedback_on_a_planted_error_only_and_only_once`
+- [`tests/test_voids.py`](../tests/test_voids.py)
+  - `test_no_feedback_is_given_about_a_voided_planted_error`
 
 ## REQ-043
 
@@ -497,11 +511,14 @@ Change a database's schema only when asked to upgrade it, copy the log exactly o
 - [`tests/test_upgrade.py`](../tests/test_upgrade.py)
   - `test_a_copy_that_is_not_exact_undoes_the_upgrade`
   - `test_a_failure_in_version_3_undoes_version_2_as_well`
+  - `test_a_log_not_copied_exactly_by_version_4_undoes_it`
   - `test_a_rating_that_is_not_copied_exactly_undoes_version_3`
   - `test_a_version_2_database_is_not_upgraded_unasked`
+  - `test_a_version_3_database_is_not_upgraded_unasked`
   - `test_nothing_upgrades_a_database_unasked`
   - `test_the_log_is_unchanged_by_the_upgrade`
   - `test_version_3_keeps_every_row_and_stored_rating`
+  - `test_version_4_copies_the_log_exactly_and_changes_no_record`
 
 ## REQ-047
 
@@ -572,3 +589,89 @@ Where a queue's settings give no planted share, use 1%, 2% or 3% according to th
   - `test_every_vital_rating_has_the_share_in_adr_007`
   - `test_rate_can_be_overridden`
   - `test_risk_tier_defaults`
+
+## REQ-054
+
+Void only a whole planted error that has been released or put in a session, for a listed reason with an explanation and a reference, requested by one person and confirmed by a different one, at least one of whom neither wrote nor approved it, and neither of whom is recorded as a reviewer who met it. A void is permanent and retires the planted error. A request alone changes nothing, and can be cancelled.
+
+- [`tests/test_voids.py`](../tests/test_voids.py)
+  - `test_a_request_changes_nothing`
+  - `test_a_request_needs_a_listed_reason_an_explanation_and_a_reference`
+  - `test_a_reviewer_who_met_it_cannot_ask`
+  - `test_confirming_retires_it_and_keeps_an_earlier_retirement`
+  - `test_one_maker_with_an_independent_person_or_two_of_them_can_void`
+  - `test_one_never_released_or_sat_cannot_be_voided_only_retired`
+  - `test_only_its_own_queue_can_void_it`
+  - `test_requests_can_be_cancelled_and_a_void_is_permanent`
+  - `test_someone_who_is_shown_it_after_asking_cannot_confirm`
+  - `test_the_commands`
+  - `test_the_database_also_requires_one_of_the_two_to_be_independent`
+  - `test_the_database_takes_each_listed_reason`
+  - `test_the_reasons_are_the_four_in_adr_008`
+  - `test_two_different_people_one_of_them_independent`
+  - `test_whoever_sat_it_cannot_void_it`
+
+## REQ-055
+
+Put a void in effect only by a log entry holding a commitment, which names no planted error, item, reviewer or reason. Fail verification unless every such entry matches exactly one unchanged record. A void interrupted before its log entry has no effect on any result, and can be completed or cancelled.
+
+- [`tests/test_voids.py`](../tests/test_voids.py)
+  - `test_a_log_entry_for_a_record_never_confirmed_is_refused`
+  - `test_a_second_log_entry_cannot_share_a_record`
+  - `test_a_void_that_was_changed_or_removed_gives_no_scores`
+  - `test_an_entry_for_the_right_record_must_name_its_queue_and_nothing_else`
+  - `test_an_interrupted_void_can_be_cancelled_instead`
+  - `test_an_interrupted_void_has_no_effect_and_can_be_completed`
+  - `test_cutting_the_void_off_the_log_is_found_with_an_exported_head`
+  - `test_lost_or_damaged_void_records_never_bring_results_back_unnoticed`
+  - `test_the_log_holds_only_a_commitment`
+  - `test_voiding_while_a_copy_waits_gives_nothing_away_and_still_blocks_it`
+
+## REQ-056
+
+Leave every result of a voided planted error, catches and misses alike, out of every score and of the thresholds made from them, while still counting it as work done. Score nothing again, delete nothing, and change nothing the guard does.
+
+- [`tests/test_void_scoring.py`](../tests/test_void_scoring.py)
+  - `test_voided_results_do_not_count_towards_the_individual_minimum`
+  - `test_voided_results_leave_every_score_and_stay_in_work_done`
+- [`tests/test_voids.py`](../tests/test_voids.py)
+  - `test_a_report_leaves_the_results_out_and_shows_them_beside`
+  - `test_voiding_while_a_copy_waits_gives_nothing_away_and_still_blocks_it`
+
+## REQ-057
+
+Wherever voided results affect a report, show how many were left out, as catches and misses, the reasons, and the catch rate with them beside the one without. Judge a "Voided results" check as breached when a score check would be breached with them but is not without them, including for too little data, or when more than the set share of results is voided. Withhold what would describe one person, and never present the check as met when it cannot be judged.
+
+- [`tests/test_void_scoring.py`](../tests/test_void_scoring.py)
+  - `test_a_breach_that_voiding_removes_is_a_breach`
+  - `test_a_hidden_fall_in_agreement_with_catching_less_is_a_breach`
+  - `test_a_share_breach_is_still_said_because_it_is_only_counts`
+  - `test_for_one_reviewer_with_too_few_the_check_is_withheld_not_passed`
+  - `test_hidden_fatigue_is_a_breach`
+  - `test_nothing_gives_away_scores_that_are_one_persons_by_subtraction`
+  - `test_nothing_is_said_when_nothing_is_left_out`
+  - `test_one_kind_still_in_breach_does_not_cover_for_another`
+  - `test_the_check_says_nothing_about_a_counted_figure_that_is_one_persons`
+  - `test_the_share_limit_comes_from_the_settings`
+  - `test_the_summary_counts_planted_errors_by_reason_and_results_by_how_they_went`
+  - `test_too_large_a_share_voided_is_a_breach`
+  - `test_too_little_left_to_judge_counts_as_removing_a_breach`
+  - `test_voided_results_that_are_one_persons_are_withheld_with_the_figure_including_them`
+  - `test_voiding_that_hides_no_breach_is_within_limits`
+- [`tests/test_voids.py`](../tests/test_voids.py)
+  - `test_a_person_with_too_few_left_shows_nothing_about_what_was_voided`
+  - `test_a_report_leaves_the_results_out_and_shows_them_beside`
+  - `test_alerts_tell_the_qa_lead_when_too_much_is_voided`
+  - `test_group_rows_show_the_figure_with_voided_results_too`
+  - `test_individual_results_show_both`
+
+## REQ-058
+
+Never change a recorded qualification result because of a void. Count a pass only while its original mark is met without any voided planted error, and never turn a fail into a pass.
+
+- [`tests/test_voids.py`](../tests/test_voids.py)
+  - `test_a_fail_never_becomes_a_pass`
+  - `test_a_pass_counts_only_while_its_mark_is_met_without_voided_ones`
+  - `test_a_planted_error_voided_while_its_session_is_open`
+  - `test_an_earlier_pass_that_is_untouched_still_counts`
+  - `test_relabelling_a_session_item_cannot_hide_a_void_from_qualification_status`

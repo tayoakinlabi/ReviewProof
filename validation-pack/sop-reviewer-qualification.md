@@ -120,6 +120,12 @@ guide. The chance of failing on correct items comes on top. More items give a cl
 
 Never change a mark after seeing answers.
 
+**Leave room below the number of planted errors.** If a planted error is later
+[voided](sop-planted-errors.md#10-a-planted-error-that-is-wrong-or-recognisable) as faulty, a
+pass counts only if the original mark is met without it. With a mark that requires every
+planted error, one void ends every pass, however well the person did. A mark one below the
+number allows for one voided error only for those who caught all the others.
+
 ## 6. Running a session
 
 1. Confirm the reviewer's identity, and use their pseudonymous ID (DEP-008).
@@ -175,10 +181,14 @@ Never change a mark after seeing answers.
    conditions or missing training. Then **[FILL: training or coaching, what the person may do
    meanwhile, how soon they may retake, how many times, and what happens after that]**. A retake
    needs planted errors they have not had. Use new correct items too.
-5. **A faulty item:** follow
+5. **A faulty planted error:** follow
    [section 10 of the planted-error procedure](sop-planted-errors.md#10-a-planted-error-that-is-wrong-or-recognisable).
-   ReviewProof cannot rescore or cancel a finished session. Record your decision beside it, and
-   run a new session if needed.
+   A session's recorded result never changes. Once the planted error is voided, a recorded pass
+   counts only if its original mark is met without it, and `rp qualify status` shows how many
+   of the rest were caught. A fail never becomes a pass: offer a new session. A person who
+   must sit again because of a void is not at fault.
+6. **A faulty correct item** cannot be voided. Record your decision beside the result, and run
+   a new session if needed.
 
 ## 8. Records
 

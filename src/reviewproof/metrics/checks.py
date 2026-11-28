@@ -18,9 +18,11 @@ from reviewproof.metrics.measures import (
     Place,
     agreement_rate,
     approvals,
+    as_recorded,
     by_defect_class,
     fast_approvals,
     fatigue,
+    left_out,
     nothing_hidden,
     one_reviewer_rule,
     real_decisions,
@@ -28,6 +30,7 @@ from reviewproof.metrics.measures import (
 )
 from reviewproof.metrics.projection import ItemRecord, Refusal
 from reviewproof.metrics.stats import Rate
+from reviewproof.models import DefectClass
 
 CLASS_NAMES = {
     "wrong_value": "wrong value",
@@ -52,6 +55,8 @@ class Check:
     state: State
     #: Plain language, with the numbers. Names no reviewer, item or planted error.
     detail: str
+    #: Not judged because judging it would describe one person.
+    withheld: bool = False
 
 
 def percent(value: float) -> str:
@@ -66,6 +71,7 @@ def _withheld(rule: str, title: str) -> Check:
         State.NOT_ENOUGH_DATA,
         "Withheld: it rests on one reviewer with too few planted errors, so it would describe "
         "that person.",
+        withheld=True,
     )
 
 
@@ -123,7 +129,7 @@ def check_classes(
         f"{CLASS_NAMES[defect.value]}: {rate.successes} of {rate.total} caught "
         f"({percent(rate.value)})"
         for defect, rate in judged.items()
-        if rate.value < limits.class_catch_rate_min
+        if defect in _weak_classes(records, limits, hides)
     ]
     if weak:
         return Check(
@@ -140,6 +146,89 @@ def check_classes(
         State.OK,
         f"Every kind with at least {limits.min_sample} planted errors is caught at least "
         f"{percent(limits.class_catch_rate_min)} of the time ({len(judged)} judged).",
+    )
+
+
+def _weak_classes(
+    records: Sequence[ItemRecord], limits: Thresholds, hides: Hides
+) -> set[DefectClass]:
+    """The kinds of defect caught less often than their limit, among those that can be judged."""
+    counted = scored(records)
+    return {
+        defect
+        for defect, rate in by_defect_class(records).items()
+        if rate.total >= limits.min_sample
+        and rate.value < limits.class_catch_rate_min
+        and not hides([r for r in counted if r.defect_class is defect])
+    }
+
+
+def check_voided(
+    records: Sequence[ItemRecord],
+    places: Mapping[str, Place],
+    limits: Thresholds,
+    hides: Hides = nothing_hidden,
+) -> Check | None:
+    """Voiding must never make results look better without saying so (ADR-008). Only when a
+    result has been left out.
+
+    A breach when a score check would be a breach with the voided results but is not without
+    them, including because too little is left to judge it, or when too large a share of
+    results is voided.
+    """
+    excluded = left_out(records)
+    if not excluded:
+        return None
+    title = "Voided results"
+    everything = as_recorded(records)
+    problems = []
+
+    total = len(scored(records)) + len(excluded)
+    # Counts alone say nothing about how anyone decided, so this is never withheld.
+    if total >= limits.min_sample and len(excluded) / total > limits.voided_share_max:
+        problems.append(
+            f"{len(excluded)} of {total} planted-error results are voided "
+            f"({percent(len(excluded) / total)}). The limit is "
+            f"{percent(limits.voided_share_max)}."
+        )
+
+    private = hides(scored(records)) or hides(excluded)
+    unsure = private
+    if not private:
+        hidden_breaches = []
+        for judge in (
+            lambda r: check_catch_rate(r, limits, hides),
+            lambda r: check_agreement(r, limits, hides),
+            lambda r: check_fatigue(r, places, limits, hides),
+        ):
+            with_them, without = judge(everything), judge(records)
+            if with_them.state is State.BREACH and without.state is not State.BREACH:
+                hidden_breaches.append(with_them.title)
+            unsure = unsure or with_them.withheld
+        # Kind by kind: another kind still in breach must not cover for one that is not.
+        classes = _weak_classes(everything, limits, hides) - _weak_classes(records, limits, hides)
+        hidden_breaches += [
+            f"Kinds of error ({CLASS_NAMES[defect.value]})"
+            for defect in DefectClass
+            if defect in classes
+        ]
+        unsure = unsure or check_classes(everything, limits, hides).withheld
+        if hidden_breaches:
+            problems.append(
+                f"With the {len(excluded)} voided result(s), these would be outside their "
+                f"limit; without them they are not: {'; '.join(hidden_breaches)}."
+            )
+
+    if problems:
+        return Check("voided", title, State.BREACH, " ".join(problems))
+    if unsure:
+        return _withheld("voided", title)
+    return Check(
+        "voided",
+        title,
+        State.OK,
+        f"{len(excluded)} planted-error result(s) are voided. Leaving them out hides no "
+        "breach of a limit.",
     )
 
 
@@ -316,6 +405,7 @@ def evaluate(
         check_agreement(records, limits, hides),
         check_fatigue(records, places, limits, hides),
         check_load(records, limits),
+        check_voided(records, places, limits, hides),
         check_safety(refusals),
     ]
     return [check for check in checks if check is not None]

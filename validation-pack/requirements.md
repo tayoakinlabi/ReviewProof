@@ -94,7 +94,7 @@ reusing its number. Mark any requirement that does not apply to your intended us
 | REQ-031 | Record a qualification session's pass criteria before it starts, require at least 10 planted errors and 5 correct items, and refuse criteria that cannot fail a reviewer who answers every item the same way. |
 | REQ-032 | Keep qualification planted errors separate from live ones, never give a reviewer one from an earlier session of theirs, and never execute a session item or count it in live metrics. |
 | REQ-033 | On verification with the restricted database, check that session items, answers and results are unchanged, and work each result out again. |
-| REQ-034 | Report a reviewer as qualified for a queue only if they passed a session that started after the queue's latest change of AI system version. (It reports this and does not stop anyone reviewing.) |
+| REQ-034 | Report a reviewer as qualified for a queue only if they passed a session that started after the queue's latest change of AI system version, and only while they meet its pass mark without any voided planted error. (It reports this and does not stop anyone reviewing.) |
 
 ### Metrics, reports and alerts
 
@@ -103,13 +103,13 @@ The definition of every figure is in the [command reference](../docs/cli.md#how-
 | ID | The software shall |
 | --- | --- |
 | REQ-035 | Show scores only when the evidence verifies. Otherwise show none and say why. |
-| REQ-036 | Work out catch rate as planted errors caught out of planted errors decided at the decider's first sight, leaving undecided ones out and reporting repeats separately, with a 95% Wilson interval. |
+| REQ-036 | Work out catch rate as planted errors caught out of planted errors decided at the decider's first sight, leaving undecided and voided ones out and reporting repeats separately, with a 95% Wilson interval. |
 | REQ-037 | Score a planted error as caught only if it is rejected, or edited in its defect field. |
 | REQ-038 | Work out fast approvals, review time, agreement, workload and fatigue as the command reference defines them. |
-| REQ-039 | Judge each threshold as breached, met or not enough data, and never present not enough data as met. |
-| REQ-040 | Show individual results only when asked, and only from at least 10 first-sight planted errors, a minimum settings can raise but not lower; withhold a group figure that rests on one reviewer with fewer; and send alerts only to the QA lead, with queue-level findings only. |
+| REQ-039 | Judge each threshold as breached, met or not enough data, and never present not enough data, or a judgement withheld for privacy, as met. |
+| REQ-040 | Show individual results only when asked, and only from at least 10 first-sight planted errors, a minimum settings can raise but not lower; withhold a group figure that rests on one reviewer with fewer, including what voids left out and the figure that includes it; and send alerts only to the QA lead, with queue-level findings only. |
 | REQ-041 | Name no item and no planted error in a report. |
-| REQ-042 | Give a reviewer feedback only on planted errors they decided, once each, at the time the queue's setting allows. |
+| REQ-042 | Give a reviewer feedback only on planted errors they decided that have not been voided, once each, at the time the queue's setting allows. |
 
 ### Network, settings and databases
 
@@ -143,6 +143,18 @@ guide**: [LangGraph](../docs/guides/langgraph.md),
 | --- | --- |
 | REQ-053 | Where a queue's settings give no planted share, use 1%, 2% or 3% according to the queue's VITAL rating, as [ADR-007](../docs/adr/0007-vital-ratings.md#default-planted-share) sets out; where they give one, use it. |
 
+### Voided planted errors
+
+See [ADR-008](../docs/adr/0008-voiding-planted-errors.md).
+
+| ID | The software shall |
+| --- | --- |
+| REQ-054 | Void only a whole planted error that has been released or put in a session, for a listed reason with an explanation and a reference, requested by one person and confirmed by a different one, at least one of whom neither wrote nor approved it, and neither of whom is recorded as a reviewer who met it. A void is permanent and retires the planted error. A request alone changes nothing, and can be cancelled. |
+| REQ-055 | Put a void in effect only by a log entry holding a commitment, which names no planted error, item, reviewer or reason. Fail verification unless every such entry matches exactly one unchanged record. A void interrupted before its log entry has no effect on any result, and can be completed or cancelled. |
+| REQ-056 | Leave every result of a voided planted error, catches and misses alike, out of every score and of the thresholds made from them, while still counting it as work done. Score nothing again, delete nothing, and change nothing the guard does. |
+| REQ-057 | Wherever voided results affect a report, show how many were left out, as catches and misses, the reasons, and the catch rate with them beside the one without. Judge a "Voided results" check as breached when a score check would be breached with them but is not without them, including for too little data, or when more than the set share of results is voided. Withhold what would describe one person, and never present the check as met when it cannot be judged. |
+| REQ-058 | Never change a recorded qualification result because of a void. Count a pass only while its original mark is met without any voided planted error, and never turn a fail into a pass. |
+
 ## Deployment duties
 
 For each duty, record how you meet it and how you tested it. Where the tool's design records
@@ -169,3 +181,4 @@ explain why, see the [design records](../docs/adr/) and the
 | DEP-016 | Handle ReviewProof's errors as the guides describe. After a write that failed or could not be recorded, have a person check the target system. With an adapter, meet every condition in its guide. | **[FILL]** |
 | DEP-017 | Decide what your agent library, model provider and tracing tools may send and store, and set them accordingly. Some send tracing data by default. | **[FILL]** |
 | DEP-018 | Fix the versions of ReviewProof and of your agent library, test them with data representative of your work before use, and test again before changing either. | **[FILL]** |
+| DEP-019 | Decide who may request and confirm voids, and require a quality record and signatures for each. Review together every planted error with the same fault, review every void at your metric review, and never quote a figure that leaves voided results out without the figure that includes them. | **[FILL]** |

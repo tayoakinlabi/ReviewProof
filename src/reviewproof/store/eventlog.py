@@ -27,6 +27,7 @@ from reviewproof.store.registry import (
     read_entry,
 )
 from reviewproof.store.schema import GENESIS_HASH, StoreError
+from reviewproof.store.void_check import Void, match_voids
 
 FORMAT_VERSION = 1
 
@@ -82,6 +83,8 @@ class VerifyResult:
     registry_checked: bool = False
     registry_errors: tuple[str, ...] = ()
     anchor_error: str | None = None
+    #: The voids in effect, by planted error ID, if the restricted database was checked.
+    voids: Mapping[str, Void] = field(default_factory=dict, repr=False)
 
     @property
     def ok(self) -> bool:
@@ -237,6 +240,29 @@ def session_events(
     return checked
 
 
+def voids_in_effect(oversight: sqlite3.Connection, planted: sqlite3.Connection) -> dict[str, Void]:
+    """The voids in effect, by planted error ID, for code that acts on them without verifying
+    the whole log. Each event is checked like ``item_events``, and a void that does not match
+    its record is an error: never silently ignored.
+    """
+    try:
+        rows = oversight.execute(
+            f"SELECT {', '.join(_COLUMNS)} FROM events WHERE type = ? ORDER BY event_id",
+            (EventType.PLANTED_VOIDED.value,),
+        ).fetchall()
+        events = []
+        for row in rows:
+            record = dict(zip(_COLUMNS, row, strict=True))
+            _check_in_place(oversight, record)
+            events.append({**record, "data": json.loads(record["data"])})
+    except sqlite3.Error as error:
+        raise StoreError(f"cannot read the event log: {error}") from error
+    in_effect, errors = match_voids(planted, events)
+    if errors:
+        raise IntegrityError("the void records do not match the log; run rp verify")
+    return in_effect
+
+
 def _check_in_place(connection: sqlite3.Connection, record: Mapping[str, Any]) -> None:
     number = record["event_id"]
     previous = GENESIS_HASH
@@ -272,6 +298,7 @@ def verify(
     shown: list[tuple[int, str, str, Mapping[str, Any]]] = []
     duplicates: list[str] = []
     qualification: list[dict[str, Any]] = []
+    voided: list[dict[str, Any]] = []
     hash_at_expected = GENESIS_HASH if expected and expected.event_count == 0 else None
 
     # Text that is not UTF-8 is read as bytes, so the type check reports it at its own event.
@@ -295,6 +322,8 @@ def verify(
                     duplicates.append(f"event {count}: item {item_id} was submitted twice")
                 else:
                     submitted[item_id] = (count, json.loads(record["data"]))
+            elif record["type"] == EventType.PLANTED_VOIDED.value:
+                voided.append({**record, "data": json.loads(record["data"])})
             elif record["type"].startswith("qualification_"):
                 qualification.append({**record, "data": json.loads(record["data"])})
             elif record["type"] == EventType.SHOWN.value:
@@ -319,9 +348,12 @@ def verify(
             )
 
     registry_errors = list(duplicates)
+    voids: dict[str, Void] = {}
     if planted is not None:
         registry_errors += _check_registry(planted, submitted, shown)
         registry_errors += check_qualification(planted, qualification)
+        voids, void_errors = match_voids(planted, voided)
+        registry_errors += void_errors
 
     return VerifyResult(
         head=Head(count, previous),
@@ -330,6 +362,7 @@ def verify(
         registry_checked=planted is not None,
         registry_errors=tuple(registry_errors),
         anchor_error=anchor_error,
+        voids=voids,
     )
 
 

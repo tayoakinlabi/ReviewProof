@@ -47,6 +47,18 @@ class EventType(str, Enum):
     QUALIFICATION_SHOWN = "qualification_shown"
     QUALIFICATION_ANSWERED = "qualification_answered"
     QUALIFICATION_FINISHED = "qualification_finished"
+    PLANTED_VOIDED = "planted_voided"
+
+
+class VoidReason(str, Enum):
+    """Why a planted error was faulty (ADR-008). That it was hard, widely missed or
+    recognisable is not a reason.
+    """
+
+    NOT_DEFECTIVE = "not_defective"
+    MORE_THAN_ONE_DEFECT = "more_than_one_defect"
+    WRONG_EXPECTED_DECISION = "wrong_expected_decision"
+    NOT_FINDABLE = "not_findable"
 
 
 class CallState(str, Enum):

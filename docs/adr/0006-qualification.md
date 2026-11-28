@@ -1,6 +1,6 @@
 # ADR-006: Reviewer qualification sessions
 
-- **Status:** Accepted
+- **Status:** Accepted. Parts are changed by [ADR-008](0008-voiding-planted-errors.md) (voiding).
 - **Date:** 2026-11-26
 
 ## Context

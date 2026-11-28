@@ -65,6 +65,7 @@ a **suggestion to challenge**, not a determination.
 | F6 Alerts | Sends threshold breaches to the QA lead | **[FILL]** | **[FILL]** | Support, if reports are also reviewed on a schedule |
 | F7 Reviewer qualification | Seeded-defect sessions and status | **[FILL]** | **[FILL]** | Directly, if it decides who may review |
 | F8 Paused agents and adapters | Connects agent libraries to the guard | **[FILL: which adapter]** | **[FILL]** | Directly, as F3 |
+| F9 Voiding faulty planted errors | Leaves a faulty planted error's results out of scores | **[FILL]** | **[FILL]** | Directly: changes the figures Quality decides from |
 
 ## 5. Records
 
@@ -72,7 +73,7 @@ a **suggestion to challenge**, not a determination.
 | --- | --- | --- |
 | Event log | `oversight.db` | Submissions, showings, decisions, executions, blocks, feedback, AI system changes and qualification events. For real items, salted hashes, not content. |
 | Item registry | `planted.db` | Which items are planted, target IDs, trace hashes and names of what screens showed |
-| Planted errors | `planted.db` | Their full content, approvals and retirement |
+| Planted errors | `planted.db` | Their full content, approvals, retirement, and any request to void them, with its reason and explanation |
 | Qualification sessions | `planted.db` | The full content of session items, and any judgment recorded before the AI's answer was shown |
 | Exports | Where you put them | Reports, exported log heads and qualification worksheets |
 
@@ -125,7 +126,9 @@ met. The ones that most affect whether results mean anything:
 - Its times come from the clock of the machine it runs on.
 - It cannot detect a completely rebuilt log without a head exported earlier.
 - With few planted errors, results are strongly affected by chance.
-- Retiring a planted error leaves its past results in every score, including one found to be
-  wrong. ReviewProof cannot exclude them.
+- Retiring a planted error leaves its past results in every score. A faulty one has to be
+  voided, by two people. The software cannot judge whether the reason is true.
+- With one reviewer and few results, the figures showing what a void removed are withheld,
+  and the "Voided results" check raises no alert.
 - A reviewer's qualification does not expire with time.
 - **[FILL: limitations you found]**

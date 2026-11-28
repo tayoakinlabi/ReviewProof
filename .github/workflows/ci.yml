@@ -27,7 +27,7 @@ jobs:
       - name: At least 90% coverage of each safety-critical file
         shell: bash
         run: |
-          for file in guard gate planted store/eventlog store/registry keyed adapters/tool; do
+          for file in guard gate planted store/eventlog store/registry keyed adapters/tool voids store/void_check; do
             echo "== $file"
             coverage report --fail-under=90 "src/reviewproof/$file.py"
           done

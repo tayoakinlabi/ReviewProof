@@ -39,7 +39,7 @@ from reviewproof.store.commitments import (
     new_salt,
     qualification_commitment,
 )
-from reviewproof.store.eventlog import item_events, session_events
+from reviewproof.store.eventlog import item_events, session_events, voids_in_effect
 from reviewproof.store.registry import fingerprint_of
 from reviewproof.store.schema import StoreError
 from reviewproof.strictload import LoadError, load_file
@@ -108,6 +108,15 @@ class State:
     #: The passed session that counts, or the latest that once did.
     session_id: str | None = None
     passed_at: str | None = None
+    #: In that session: how many planted errors have since been voided (ADR-008), and of
+    #: those that still count, how many there are and how many the reviewer caught. The pass
+    #: counts only while ``still_caught`` is at least ``mark``.
+    voided: int = 0
+    still_counting: int | None = None
+    still_caught: int | None = None
+    mark: int | None = None
+    #: This reviewer's sessions on the queue that hold a voided planted error, passed or not.
+    affected: tuple[str, ...] = ()
 
 
 def load_plan(path: str | Path) -> Plan:
@@ -145,6 +154,11 @@ def _keys(data: Mapping, required: set[str], where: str) -> None:
     missing = sorted(required - data.keys())
     if missing:
         raise PlanError(f"{where}: missing key(s): {', '.join(missing)}")
+
+
+def _still_met(standing: Mapping[str, Any]) -> bool:
+    """A pass untouched by voids stands. Otherwise the original mark must still be met."""
+    return not standing or standing["still_caught"] >= standing["mark"]
 
 
 @dataclass(frozen=True)
@@ -468,7 +482,14 @@ class Qualification:
                     self._o._clock(),
                 ),
             )
-            if result.passed and started["system_id"] == self._o._system_id:
+            # A planted error may have been voided while the session was open.
+            voided = frozenset(voids_in_effect(self._o._db, self._o._planted))
+            standing = self._standing(self._session(session_id), voided)
+            if (
+                result.passed
+                and _still_met(standing)
+                and started["system_id"] == self._o._system_id
+            ):
                 self._o._db.execute(
                     "UPDATE reviewers SET qualification_status = ? WHERE reviewer_id = ?",
                     (QualificationStatus.QUALIFIED.value, reviewer),
@@ -526,7 +547,9 @@ class Qualification:
 
     def status(self, reviewer: str) -> State:
         """Worked out from the log: a pass counts only for the queue's current version of the
-        AI system, and only if the queue has not changed version since the session started.
+        AI system, only if the queue has not changed version since the session started, and
+        only while its original mark is met without any voided planted error (ADR-008). The
+        recorded result never changes, and a fail never becomes a pass.
         """
         require_reviewer(reviewer)
         queue = self._o._queue.name
@@ -535,24 +558,70 @@ class Qualification:
                 "SELECT IFNULL(MAX(event_id), 0) FROM events WHERE type = ? AND queue_id = ?",
                 (EventType.CONTEXT_REGISTERED.value, queue),
             ).fetchone()[0]
+            voided = frozenset(voids_in_effect(self._o._db, self._o._planted))
+            history = self._events_of(reviewer, queue)
+            affected = tuple(
+                e["data"]["session_id"]
+                for e in history
+                if e["type"] == EventType.QUALIFICATION_STARTED.value
+                and voided & {self._item(i["item_id"]).planted_error_id for i in e["data"]["items"]}
+            )
             earlier = None
-            for finished in reversed(self._events_of(reviewer, queue)):
+            for finished in reversed(history):
                 if finished["type"] != EventType.QUALIFICATION_FINISHED.value:
                     continue
                 events = self._session(finished["data"]["session_id"])
                 if not events[-1]["data"].get("passed"):
                     continue
                 started = events[0]
-                if started["system_id"] == self._o._system_id and started["event_id"] > changed:
-                    return State(
-                        QualificationStatus.QUALIFIED,
-                        finished["data"]["session_id"],
-                        events[-1]["ts_utc"],
-                    )
-                earlier = earlier or (finished["data"]["session_id"], events[-1]["ts_utc"])
+                standing = self._standing(events, voided)
+                found = dict(
+                    session_id=finished["data"]["session_id"],
+                    passed_at=events[-1]["ts_utc"],
+                    affected=affected,
+                    **standing,
+                )
+                current = started["system_id"] == self._o._system_id
+                if current and started["event_id"] > changed and _still_met(standing):
+                    return State(QualificationStatus.QUALIFIED, **found)
+                earlier = earlier or found
         if earlier:
-            return State(QualificationStatus.REQUALIFICATION_REQUIRED, *earlier)
-        return State(QualificationStatus.NOT_QUALIFIED)
+            return State(QualificationStatus.REQUALIFICATION_REQUIRED, **earlier)
+        return State(QualificationStatus.NOT_QUALIFIED, affected=affected)
+
+    def _standing(self, events: Sequence[Mapping], voided: frozenset[str]) -> dict[str, Any]:
+        """What is left of a session's catches once voided planted errors are set aside."""
+        if not voided:
+            return {}
+        started = events[0]
+        items = [self._item(entry["item_id"]) for entry in started["data"]["items"]]
+        # The records must still be what the log committed to before they decide anything,
+        # even that no voided planted error is among them.
+        self._check_unchanged(items, started["data"]["items"])
+        if not voided & {item.planted_error_id for item in items}:
+            return {}
+        answers = {
+            e["item_id"]: e for e in events if e["type"] == EventType.QUALIFICATION_ANSWERED.value
+        }
+        library = self._o.planted
+        counting = [
+            item
+            for item in items
+            if item.planted_error_id is not None and item.planted_error_id not in voided
+        ]
+        caught = 0
+        for item in counting:
+            answer = answers.get(item.item_id)
+            if answer is not None:
+                field_name = library.get(item.planted_error_id).defect_field
+                edited = answer["data"].get("edited_fields", [])
+                caught += score(answer["decision"], edited, field_name) is Outcome.CATCH
+        return {
+            "voided": sum(item.planted_error_id in voided for item in items),
+            "still_counting": len(counting),
+            "still_caught": caught,
+            "mark": started["data"]["criteria"]["min_caught"],
+        }
 
     # ------------------------------------------------------------- storage
 

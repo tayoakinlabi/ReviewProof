@@ -77,6 +77,8 @@ class Thresholds:
     agreement_rate_max: float = 0.98
     #: Alert when the catch rate late in sessions is this much lower than early on.
     fatigue_drop_max: float = 0.20
+    #: Alert when more than this share of planted-error results are voided (ADR-008).
+    voided_share_max: float = 0.10
     #: Fewest planted errors (or approvals, for weekly speed) before a rule is judged.
     min_sample: int = 10
     #: The rolling catch rate covers this many of the latest planted errors.
@@ -94,6 +96,7 @@ _SHARES = (
     "fast_approval_share_max",
     "agreement_rate_max",
     "fatigue_drop_max",
+    "voided_share_max",
 )
 _COUNTS = ("min_sample", "rolling_window", "session_gap_minutes", "individual_min_planted")
 

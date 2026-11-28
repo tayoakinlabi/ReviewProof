@@ -38,6 +38,12 @@ These concern reporting code that no release contains yet.
   categories `moderate` (the same as `medium`), `very_high` and `critical`. Very High and
   Critical take the top default planted share. No rating from A1 to A10 that 0.1.0 accepted
   gets a different share. See [ADR-007](docs/adr/0007-vital-ratings.md).
+- Voiding a faulty planted error, which leaves all its results out of scores, catches and
+  misses alike: `rp plant void`, `void-confirm` and `void-cancel`. It takes two people, is
+  permanent, and is recorded in the log. Reports show what was left out beside the figures,
+  a "Voided results" check flags a void that hides a breach or too large a share (setting
+  `voided_share_max`), and a qualification pass counts only while its mark is met without
+  voided planted errors. See [ADR-008](docs/adr/0008-voiding-planted-errors.md).
 - Settings: optional `reporting` and `alerts` sections, and per-queue `thresholds`.
 - Qualification sessions: planted errors and correct items, a pass mark fixed in advance,
   and each reviewer's status for the current version of the AI system (`rp qualify`).
@@ -62,12 +68,12 @@ These concern reporting code that no release contains yet.
 
 ### Change impact
 
-**This release needs new database schemas: version 3 of `oversight.db` and version 2 of
+**This release needs new database schemas: version 4 of `oversight.db` and version 3 of
 `planted.db`.** It refuses to write to databases made by 0.1.0 until you run `rp init`, so
 installing it changes nothing in your records by itself. **Back up both databases first.** If
 you have upgraded a database with this repository's source before, you may need to run
-`rp init` again. The upgrade rebuilds the log table and replaces the column that holds a
-queue's risk category, keeping the old one unused. Stored values and hashes do not change, and
+`rp init` again. The upgrade rebuilds the log table, replaces the column that holds a
+queue's risk category, keeping the old one unused, and adds the void records. Stored values and hashes do not change, and
 heads exported by 0.1.0 still match. After it, 0.1.0 cannot open the databases. A validated
 user should run `rp verify` with a previously exported head before and after, retest the gate,
 guard and log, and check each queue's planted share.

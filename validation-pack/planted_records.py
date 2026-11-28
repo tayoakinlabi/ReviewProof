@@ -1,4 +1,4 @@
-"""Read two things from the databases that the ``rp`` commands do not show. For QA.
+"""Read records from the databases that the ``rp`` commands do not show. For QA.
 
     python validation-pack/planted_records.py register planted.db
 
@@ -10,6 +10,11 @@ Everyone known to have been given, shown or to have decided on a copy of one pla
 in live review or in a qualification session. For a live copy with nothing recorded, the
 reviewer is blank unless your application named one. Use it when a planted error turns out to
 be wrong or recognisable, because retiring it leaves those results in every score.
+
+    python validation-pack/planted_records.py voids oversight.db planted.db
+
+Every request to void a planted error: what became of it, why, and who asked, confirmed or
+cancelled it. A void counts only if its state is ``in_effect``, which comes from the log.
 
 Both databases are opened read-only. **This does not check that the records are unchanged:** run
 ``rp verify --planted planted.db`` first. Verification does not cover retirement details.
@@ -29,7 +34,10 @@ from contextlib import closing
 from pathlib import Path
 
 from reviewproof.feedback import score
+from reviewproof.store.eventlog import voids_in_effect
 from reviewproof.store.schema import StoreError, open_readonly
+from reviewproof.store.void_check import read_voids
+from reviewproof.voids import state_of
 
 REGISTER = (
     "planted_error_id",
@@ -48,6 +56,20 @@ REGISTER = (
 )
 USES = ("time_utc", "use", "reference", "reviewer", "what_happened", "decision", "scored_as")
 
+VOIDS = (
+    "planted_error_id",
+    "state",
+    "reason",
+    "explanation",
+    "reference",
+    "requested_by",
+    "requested_at",
+    "confirmed_by",
+    "confirmed_at",
+    "cancelled_by",
+    "cancelled_at",
+)
+
 _EVENTS = (
     "SELECT event_id, ts_utc, type, reviewer_id, decision, data FROM events "
     "WHERE item_id = ? AND type IN "
@@ -60,6 +82,25 @@ def register(planted: Path) -> list[tuple]:
         columns = ", ".join(REGISTER)
         return [
             tuple(row) for row in db.execute(f"SELECT {columns} FROM planted_errors ORDER BY rowid")
+        ]
+
+
+def voids(oversight: Path, planted: Path) -> list[tuple]:
+    with (
+        closing(open_readonly(oversight, "oversight")) as log,
+        closing(open_readonly(planted, "planted")) as db,
+    ):
+        in_effect = voids_in_effect(log, db)
+        return [
+            tuple(
+                state_of(void, in_effect).value
+                if name == "state"
+                else getattr(void, name).value
+                if name == "reason"
+                else getattr(void, name)
+                for name in VOIDS
+            )
+            for void in read_voids(db)
         ]
 
 
@@ -116,6 +157,8 @@ def main(arguments: Sequence[str]) -> int:
         match list(arguments):
             case ["register", planted]:
                 header, rows = REGISTER, register(Path(planted))
+            case ["voids", oversight, planted]:
+                header, rows = VOIDS, voids(Path(oversight), Path(planted))
             case ["uses", planted_error_id, oversight, planted]:
                 header = USES
                 rows = uses(planted_error_id, Path(oversight), Path(planted))

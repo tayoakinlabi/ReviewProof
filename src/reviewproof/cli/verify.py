@@ -90,6 +90,7 @@ def _report(result: VerifyResult, expected: Head | None) -> None:
             print(f"  ... and {hidden} more")
     elif result.registry_checked:
         print("Item registry: matches the log.")
+        print(f"Voids in effect: {len(result.voids)}.")
 
     if result.anchor_error:
         print("FAILED: the exported head check.")

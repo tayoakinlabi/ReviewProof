@@ -11,7 +11,7 @@ from html import escape
 
 from reviewproof.metrics.checks import CLASS_NAMES, Check, State, percent
 from reviewproof.metrics.stats import Rate
-from reviewproof.report.model import Group, QueueReport, Report, ReviewerResult
+from reviewproof.report.model import Group, QueueReport, Report, ReviewerResult, Voided
 from reviewproof.store.eventlog import VerifyResult
 
 _STYLE = """
@@ -26,6 +26,7 @@ h3{font-size:1rem;margin:1.5rem 0 .4rem}
 .banner.ok{border-color:#1b7f4b;background:#eef8f2}
 .banner.bad{border-color:#b3261e;background:#fdf0ef}
 .banner.grey{border-color:#8a929b;background:#f3f4f5}
+.banner.amber{border-color:#b07d00;background:#fff7e0}
 .tiles{display:flex;flex-wrap:wrap;gap:.7rem;margin:1rem 0}
 .tile{flex:1 1 11rem;border:1px solid #cfd5db;border-radius:6px;padding:.6rem .8rem}
 .tile.lead{flex-basis:16rem;border:2px solid #1a1f24}
@@ -83,7 +84,7 @@ def render(report: Report) -> str:
         *(_queue(queue) for queue in report.queues),
         _groups("By version of the AI system", report.by_version, report),
         _groups("By site", report.by_site, report),
-        _how_to_read(),
+        _how_to_read(any(queue.voided for queue in report.queues)),
         _footer(report),
         "</body></html>\n",
     ]
@@ -140,6 +141,7 @@ def _queue(queue: QueueReport) -> str:
         f'<p class="muted">{escape(queue.task)}{where}</p>',
         _attention(queue.checks),
         _headline(queue),
+        _voided(queue),
         _classes(queue),
         _workload(queue),
     ]
@@ -235,6 +237,10 @@ def _headline(queue: QueueReport) -> str:
             else ["No planted errors decided yet", target]
         )
         catch = _tile("Planted errors caught", _share(rate), lines, lead=True)
+    if queue.voided is not None:
+        # In the headline itself, so that the figure is not copied without knowing this.
+        note = f"<strong>Leaves out {queue.voided.results} voided result(s): see below</strong>"
+        catch = catch.removesuffix("</div>") + f'<div class="small">{note}</div></div>'
     fast, agreement = summary.fast, summary.agreement
     fast_lines = [
         f"{_out_of(fast)} approvals under {queue.min_review_seconds:g} s",
@@ -263,6 +269,58 @@ def _headline(queue: QueueReport) -> str:
         ),
     ]
     return f'<div class="tiles">{"".join(tiles)}</div>'
+
+
+#: The reasons a planted error can be voided, in words.
+_REASONS = {
+    "not_defective": "the item was correct",
+    "more_than_one_defect": "it had more than one defect",
+    "wrong_expected_decision": "the expected decision was wrong",
+    "not_findable": "the defect could not be found",
+}
+
+
+def _with_them(voided: Voided) -> str:
+    """The catch rate including voided results, for a table cell."""
+    if voided.with_them.withheld:
+        return f"{voided.results} voided result(s) left out"
+    rate = voided.with_them
+    return f"With {voided.results} voided: {_share(rate)} ({_out_of(rate)})"
+
+
+def _voided(queue: QueueReport) -> str:
+    voided = queue.voided
+    if voided is None:
+        return ""
+    reasons = "; ".join(
+        f"{escape(_REASONS.get(reason, reason))}: {count}"
+        for reason, count in voided.reasons.items()
+    )
+    lines = [
+        f"<strong>Voided planted errors.</strong> {voided.planted_errors} planted error(s) "
+        f"were voided as faulty. Their {voided.results} result(s) are left out of every score "
+        "here, and still count as work done."
+    ]
+    if voided.left_out.withheld:
+        lines.append(
+            "How they were decided, and the catch rate with them, are withheld: too few for "
+            "one person alone."
+        )
+    else:
+        left, rate = voided.left_out, voided.with_them
+        misses = left.total - left.successes
+        without = (
+            "withheld"
+            if queue.withheld
+            else f"{_share(queue.summary.catch)} ({_out_of(queue.summary.catch)})"
+        )
+        lines.append(f"Left out: {left.successes} catch(es) and {misses} miss(es).")
+        lines.append(
+            f"<strong>Catch rate with them: {_share(rate)} ({_out_of(rate)}). Without them: "
+            f"{without}.</strong>"
+        )
+    lines.append(f"Planted errors by reason: {reasons}.")
+    return f'<div class="banner amber">{"<br>".join(lines)}</div>'
 
 
 def _classes(queue: QueueReport) -> str:
@@ -339,6 +397,13 @@ def _flags(person: ReviewerResult) -> str:
     )
 
 
+def _flags_with_voided(person: ReviewerResult) -> str:
+    if person.flags_with_voided is None:
+        return ""
+    texts = "; ".join(escape(flag.text) for flag in person.flags_with_voided)
+    return f'<br><span class="small">With voided results: {texts or "nothing flagged"}</span>'
+
+
 def _reviewers(queue: QueueReport, reviewers: Sequence[ReviewerResult]) -> str:
     minimum = queue.thresholds.individual_min_planted
     rows = []
@@ -346,19 +411,21 @@ def _reviewers(queue: QueueReport, reviewers: Sequence[ReviewerResult]) -> str:
         days = "day" if person.days == 1 else "days"
         load = f"{person.decided} items on {person.days} {days}; most in a day {person.max_per_day}"
         cells = f"<td>{escape(person.reviewer)}</td><td>{load}</td>"
+        beside = "" if person.voided is None else _with_them(person.voided)
+        beside = f'<br><span class="small">{beside}</span>' if beside else ""
         if person.summary is None:
             cells += (
                 f'<td colspan="4" class="muted">Not shown: fewer than {minimum} planted errors '
-                f"({person.planted} so far)</td>"
+                f"({person.planted} so far){beside}</td>"
             )
         else:
             summary = person.summary
             cells += (
                 f'<td class="n">{_share(summary.catch)} ({_out_of(summary.catch)})<br>'
-                f'<span class="small muted">{_range(summary.catch)}</span></td>'
+                f'<span class="small muted">{_range(summary.catch)}</span>{beside}</td>'
                 f'<td class="n">{_share(summary.fast)}</td>'
                 f'<td class="n">{_dwell(summary.dwell_ms)}</td>'
-                f"<td>{_flags(person)}</td>"
+                f"<td>{_flags(person)}{_flags_with_voided(person)}</td>"
             )
         rows.append(f"<tr>{cells}</tr>")
     head = (
@@ -408,11 +475,15 @@ def _programme(queue: QueueReport) -> str:
 
 def _group_row(group: Group) -> str:
     summary = group.summary
+    beside = ""
+    if group.voided is not None:
+        beside = f'<br><span class="small">{_with_them(group.voided)}</span>'
     if group.withheld:
-        caught = '<td class="n muted" colspan="2">withheld</td>'  # the rate and its range
+        # One cell for the rate and its range.
+        caught = f'<td class="n muted" colspan="2">withheld{beside}</td>'
     else:
         caught = (
-            f'<td class="n">{_share(summary.catch)} ({_out_of(summary.catch)})</td>'
+            f'<td class="n">{_share(summary.catch)} ({_out_of(summary.catch)}){beside}</td>'
             f'<td class="n">{_range(summary.catch)}</td>'
         )
     return (
@@ -432,7 +503,7 @@ def _groups(title: str, groups: Sequence[Group], report: Report) -> str:
     return f"<h2>{escape(title)}</h2>" + _table(head, (_group_row(g) for g in groups))
 
 
-def _how_to_read() -> str:
+def _how_to_read(voids: bool) -> str:
     terms = [
         (
             "Planted error",
@@ -466,6 +537,15 @@ def _how_to_read() -> str:
             "Days are UTC.",
         ),
     ]
+    if voids:
+        terms.append(
+            (
+                "Voided planted error",
+                "One found to be faulty after use, for example an item that was in fact "
+                "correct. All its results, catches and misses alike, are left out of every "
+                "score, and shown beside them.",
+            )
+        )
     items = "".join(f"<div><dt>{escape(t)}</dt><dd>{escape(d)}</dd></div>" for t, d in terms)
     return (
         f"<div class='read'><h2>How to read this report</h2><dl>{items}</dl>"
@@ -483,7 +563,8 @@ def _footer(report: Report) -> str:
             f"{t.rolling_window}; each kind at least {percent(t.class_catch_rate_min)}; very "
             f"fast approvals at most {percent(t.fast_approval_share_max)} in any week; "
             f"agreement above {percent(t.agreement_rate_max)} with a falling catch rate; "
-            f"late-session drop under {percent(t.fatigue_drop_max)}; rules judged from "
+            f"late-session drop under {percent(t.fatigue_drop_max)}; voided results at "
+            f"most {percent(t.voided_share_max)}; rules judged from "
             f"{t.min_sample} examples; individual results from {t.individual_min_planted}; "
             f"planted rate {queue.planted_rate * 100:g}%."
         )

@@ -8,7 +8,7 @@ from collections.abc import Iterator
 
 from reviewproof.metrics.measures import Summary
 from reviewproof.metrics.stats import Rate
-from reviewproof.report.model import Report
+from reviewproof.report.model import Report, Voided
 
 COLUMNS = (
     "scope_type",
@@ -63,9 +63,30 @@ def _number(metric: str, value: float | None) -> dict:
     return {"metric": metric, "value": "" if value is None else value}
 
 
-def _summary(summary: Summary) -> Iterator[dict]:
+def _leaving_out(row: dict, voided: Voided | None) -> dict:
+    """Say on the catch rate's own row that it leaves results out, in case it is copied."""
+    if voided is None:
+        return row
+    note = f"leaves out {voided.results} voided result(s)"
+    return {**row, "note": f"{row['note']}; {note}" if row.get("note") else note}
+
+
+def _voided(voided: Voided | None) -> Iterator[dict]:
+    if voided is None:
+        return
+    yield _number("voided_planted_errors", voided.planted_errors)
+    yield _number("voided_results", voided.results)
+    # successes are the catches left out; the rest of the total are misses.
+    yield _rate("voided_results_caught", voided.left_out)
+    yield _rate("catch_rate_with_voided", voided.with_them)
+    for reason, count in voided.reasons.items():
+        yield _number(f"voided_reason_{reason}", count)
+
+
+def _summary(summary: Summary, voided: Voided | None) -> Iterator[dict]:
     yield _number("decided", summary.decided)
-    yield _rate("catch_rate", summary.catch)
+    yield _leaving_out(_rate("catch_rate", summary.catch), voided)
+    yield from _voided(voided)
     if not summary.catch.withheld:
         for defect, rate in summary.classes.items():
             yield _rate(f"catch_rate_{defect.value}", rate)
@@ -94,7 +115,7 @@ def _rows(report: Report) -> Iterator[dict]:
     }
     for queue in report.queues:
         base = {"scope_type": "queue", "scope": queue.name, "queue": queue.name}
-        for row in _summary(queue.summary):
+        for row in _summary(queue.summary, queue.voided):
             yield {**base, **row}
         for check in queue.checks:
             yield {
@@ -112,15 +133,20 @@ def _rows(report: Report) -> Iterator[dict]:
             yield {**row_base, **_number("decided", person.decided)}
             yield {**row_base, **_number("reviewer_days", person.days)}
             yield {**row_base, **_number("max_per_day", person.max_per_day)}
+            for row in _voided(person.voided):
+                yield {**row_base, **row}
             if person.summary is None:
-                yield {
-                    **row_base,
+                row = {
                     "metric": "catch_rate",
                     "total": person.planted,
                     "note": "not shown: too few planted errors",
                 }
+                yield {**row_base, **_leaving_out(row, person.voided)}
                 continue
-            yield {**row_base, **_rate("catch_rate", person.summary.catch)}
+            catch = _rate("catch_rate", person.summary.catch)
+            yield {**row_base, **_leaving_out(catch, person.voided)}
+            for flag in person.flags_with_voided or ():
+                yield {**row_base, "metric": f"flag_with_voided_{flag.kind}", "note": flag.text}
             yield {**row_base, **_rate("fast_approval_share", person.summary.fast)}
             yield {**row_base, **_number("median_dwell_ms", person.summary.dwell_ms)}
             yield {**row_base, **_rate("agreement_rate", person.summary.agreement)}
@@ -128,5 +154,5 @@ def _rows(report: Report) -> Iterator[dict]:
                 yield {**row_base, "metric": f"flag_{flag.kind}", "note": flag.text}
     for kind, groups in (("system_version", report.by_version), ("site", report.by_site)):
         for group in groups:
-            for row in _summary(group.summary):
+            for row in _summary(group.summary, group.voided):
                 yield {"scope_type": kind, "scope": group.label, **row}

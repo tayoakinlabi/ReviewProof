@@ -424,8 +424,113 @@ _OVERSIGHT_V3: Migration = [
     _check_categories_copied,
 ]
 
-OVERSIGHT_MIGRATIONS: tuple[Migration, ...] = (_OVERSIGHT_V1, _OVERSIGHT_V2, _OVERSIGHT_V3)
-PLANTED_MIGRATIONS: tuple[Migration, ...] = (_PLANTED_V1, _PLANTED_V2)
+# --------------------------------------------------------------------------- version 4
+# Voiding a faulty planted error (ADR-008): a new log type in oversight.db, and the void
+# records in planted.db, which goes to version 3.
+
+
+def _check_log_copied_again(connection: sqlite3.Connection) -> None:
+    """As in version 2: refuse the upgrade unless every row of the log was copied exactly."""
+    old, new = (
+        connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        for table in ("events", "events_v4")
+    )
+    different = connection.execute(
+        f"SELECT COUNT(*) FROM (SELECT {_EVENT_COLUMNS} FROM events EXCEPT "
+        f"SELECT {_EVENT_COLUMNS} FROM events_v4)"
+    ).fetchone()[0]
+    if old != new or different:
+        raise StoreError("the event log was not copied exactly; the upgrade was undone")
+
+
+_OVERSIGHT_V4: Migration = [
+    f"""CREATE TABLE events_v4 (
+        event_id        INTEGER PRIMARY KEY NOT NULL,
+        format_version  INTEGER NOT NULL,
+        type            TEXT NOT NULL CHECK (type IN (
+            'context_registered', 'submitted', 'shown', 'opened', 'edited', 'decided',
+            'execute_requested', 'executed', 'execute_failed', 'blocked', 'withdrawn',
+            'feedback_sent', 'qualification_started', 'qualification_judged',
+            'qualification_shown', 'qualification_answered', 'qualification_finished',
+            'planted_voided')),
+        ts_utc          TEXT NOT NULL CHECK ({_is_timestamp("ts_utc")}),
+        system_id       TEXT NOT NULL,
+        queue_id        TEXT,
+        item_id         TEXT,
+        reviewer_id     TEXT,
+        decision        TEXT CHECK (decision IN ('approve', 'edit', 'reject')),
+        data            TEXT NOT NULL,
+        prev_hash       TEXT NOT NULL CHECK ({_is_hash("prev_hash")}),
+        hash            TEXT NOT NULL UNIQUE CHECK ({_is_hash("hash")})
+    )""",
+    f"INSERT INTO events_v4 ({_EVENT_COLUMNS}) "
+    f"SELECT {_EVENT_COLUMNS} FROM events ORDER BY event_id",
+    _check_log_copied_again,
+    "DROP TABLE events",
+    "ALTER TABLE events_v4 RENAME TO events",
+    "CREATE INDEX events_by_item ON events (item_id)",
+    *_EVENT_TRIGGERS,
+]
+
+#: Who wrote and who approved the planted error ``p``, compared as for approvals.
+_MAKERS = ", ".join(
+    _person(f"IFNULL(p.{column}, p.author)")
+    for column in ("author", "approved_by", "second_approved_by")
+)
+
+# A void is a request and then a confirmation or a cancellation, each a row of its own that can
+# never change. None of them has any effect until the log holds the void's commitment.
+_PLANTED_V3: Migration = [
+    f"""CREATE TABLE void_requests (
+        void_id           TEXT PRIMARY KEY NOT NULL,
+        planted_error_id  TEXT NOT NULL REFERENCES planted_errors (planted_error_id),
+        reason            TEXT NOT NULL CHECK (reason IN (
+            'not_defective', 'more_than_one_defect', 'wrong_expected_decision',
+            'not_findable')),
+        explanation       TEXT NOT NULL CHECK (length(trim(explanation)) > 0),
+        reference         TEXT NOT NULL CHECK (length(trim(reference)) > 0),
+        requested_by      TEXT NOT NULL CHECK (length({_person("requested_by")}) > 0),
+        requested_at      TEXT NOT NULL CHECK ({_is_timestamp("requested_at")}),
+        salt              BLOB NOT NULL CHECK (length(salt) = 32)
+    )""",
+    *_frozen_rows("void_requests", "void_id"),
+    "CREATE INDEX void_requests_by_planted ON void_requests (planted_error_id)",
+    f"""CREATE TABLE void_confirmations (
+        void_id       TEXT PRIMARY KEY NOT NULL REFERENCES void_requests (void_id),
+        confirmed_by  TEXT NOT NULL CHECK (length({_person("confirmed_by")}) > 0),
+        confirmed_at  TEXT NOT NULL CHECK ({_is_timestamp("confirmed_at")})
+    )""",
+    *_frozen_rows("void_confirmations", "void_id"),
+    f"""CREATE TRIGGER void_confirmations_by_someone_else BEFORE INSERT ON void_confirmations
+    WHEN EXISTS (SELECT 1 FROM void_requests WHERE void_id = NEW.void_id
+                 AND {_person("requested_by")} = {_person("NEW.confirmed_by")})
+    BEGIN SELECT RAISE(ABORT, 'void_confirmations: a different person must confirm'); END""",
+    f"""CREATE TRIGGER void_confirmations_one_independent BEFORE INSERT ON void_confirmations
+    WHEN EXISTS (
+        SELECT 1 FROM void_requests r
+        JOIN planted_errors p ON p.planted_error_id = r.planted_error_id
+        WHERE r.void_id = NEW.void_id
+        AND {_person("r.requested_by")} IN ({_MAKERS})
+        AND {_person("NEW.confirmed_by")} IN ({_MAKERS}))
+    BEGIN SELECT RAISE(ABORT, 'void_confirmations: one of the two must be independent'); END""",
+    """CREATE TRIGGER void_confirmations_not_cancelled BEFORE INSERT ON void_confirmations
+    WHEN EXISTS (SELECT 1 FROM void_cancellations WHERE void_id = NEW.void_id)
+    BEGIN SELECT RAISE(ABORT, 'void_confirmations: the request was cancelled'); END""",
+    f"""CREATE TABLE void_cancellations (
+        void_id       TEXT PRIMARY KEY NOT NULL REFERENCES void_requests (void_id),
+        cancelled_by  TEXT NOT NULL CHECK (length({_person("cancelled_by")}) > 0),
+        cancelled_at  TEXT NOT NULL CHECK ({_is_timestamp("cancelled_at")})
+    )""",
+    *_frozen_rows("void_cancellations", "void_id"),
+]
+
+OVERSIGHT_MIGRATIONS: tuple[Migration, ...] = (
+    _OVERSIGHT_V1,
+    _OVERSIGHT_V2,
+    _OVERSIGHT_V3,
+    _OVERSIGHT_V4,
+)
+PLANTED_MIGRATIONS: tuple[Migration, ...] = (_PLANTED_V1, _PLANTED_V2, _PLANTED_V3)
 
 
 # --------------------------------------------------------------------------- opening

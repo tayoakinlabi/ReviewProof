@@ -161,6 +161,9 @@ def test_fresh_databases_have_their_tables(oversight, planted):
         "qualification_items",
         "qualification_judgments",
         "submission_keys",
+        "void_requests",
+        "void_confirmations",
+        "void_cancellations",
     }
 
 
@@ -187,7 +190,7 @@ def test_oversight_items_cannot_show_which_are_planted(oversight):
 
 @pytest.mark.parametrize(
     ("create", "reopen", "versions"),
-    [(create_oversight_db, open_oversight_db, 3), (create_planted_db, open_planted_db, 2)],
+    [(create_oversight_db, open_oversight_db, 4), (create_planted_db, open_planted_db, 3)],
 )
 def test_create_and_open_are_repeatable(tmp_path, create, reopen, versions):
     path = tmp_path / "with space #1.db"

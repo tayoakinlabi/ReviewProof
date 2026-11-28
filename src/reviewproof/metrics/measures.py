@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 from statistics import median
 
@@ -70,12 +70,31 @@ def sessions(records: Iterable[ItemRecord], gap_minutes: Mapping[str, int]) -> d
     return places
 
 
-def scored(records: Iterable[ItemRecord]) -> list[ItemRecord]:
-    """The planted items that count towards scores, in the order they were decided: decided,
-    and the decider's first sight of that planted error.
+def _scorable(records: Iterable[ItemRecord]) -> list[ItemRecord]:
+    """Planted items decided at the decider's first sight of that planted error, voided or
+    not, in the order they were decided.
     """
-    counted = [r for r in records if r.decided and r.planted and r.first_sight]
-    return sorted(counted, key=lambda r: (r.decided_at, r.decided_event))
+    found = [r for r in records if r.decided and r.planted and r.first_sight]
+    return sorted(found, key=lambda r: (r.decided_at, r.decided_event))
+
+
+def scored(records: Iterable[ItemRecord]) -> list[ItemRecord]:
+    """The planted items that count towards scores: ``_scorable`` ones whose planted error
+    has not been voided (ADR-008).
+    """
+    return [r for r in _scorable(records) if not r.voided]
+
+
+def left_out(records: Iterable[ItemRecord]) -> list[ItemRecord]:
+    """The results that would count, had their planted errors not been voided."""
+    return [r for r in _scorable(records) if r.voided]
+
+
+def as_recorded(records: Sequence[ItemRecord]) -> list[ItemRecord]:
+    """The records as if nothing had been voided, for the figures that must be shown beside
+    the ones that leave voided results out.
+    """
+    return [replace(r, voided=None) if r.voided else r for r in records]
 
 
 #: Given the decided items a figure is worked out from, says whether to withhold it.
@@ -278,7 +297,11 @@ def summarise(
         load=load(decided, places),
         fatigue=fatigue(decided, places, hides),
         repeats=Rate.of(
-            [r.outcome is Outcome.CATCH for r in decided if r.planted and not r.first_sight]
+            [
+                r.outcome is Outcome.CATCH
+                for r in decided
+                if r.planted and not r.first_sight and not r.voided
+            ]
         ),
         pending_planted=sum(r.planted and not r.decided and bool(r.showings) for r in records),
     )

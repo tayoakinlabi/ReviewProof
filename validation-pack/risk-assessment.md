@@ -86,6 +86,12 @@ function changes, and on what you decide from the results.
 | RISK-019 | A setting, hook or new release of an agent library lets the run carry on after a failed write, or shows the model something else than what happened | The agent retries a write, or reports work as done | REQ-051, and the guard (REQ-014 to REQ-016) | DEP-016, DEP-018 | High | **This depends on library behaviour that can change.** The guard stops a repeat of the same call, but not a new call, which needs a new review | **[FILL]** |
 | RISK-020 | A library keeps or sends the agent's state, traces or pauses where reviewers can see them | Planted items can be told apart | REQ-049 | DEP-005, DEP-017 | High | As RISK-006 | **[FILL]** |
 
+### Voiding
+
+| ID | What could go wrong | Effect | Controls in the software | Your controls | Proposed | Why | Your rating and reason |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| RISK-021 | Voiding is used to remove genuine misses, or a faulty planted error is voided selectively or not at all | Review looks better than it is, or people are judged unfairly | REQ-054 to REQ-058 | DEP-019, DEP-008, DEP-010 | High | The one feature that removes results from scores. The software cannot judge whether a reason is true, or who is typing | **[FILL]** |
+
 ## 3. Your own risks
 
 **[FILL: risks from your process, review screen, write function, target system,

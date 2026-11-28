@@ -21,7 +21,7 @@ they describe. The figures are defined in the
 [command reference](../docs/cli.md#how-the-figures-are-defined).
 
 Queues covered: **[FILL]**. This procedure addresses deployment duty DEP-013, and parts of
-DEP-007, DEP-010 and DEP-015, in the [requirements](requirements.md#deployment-duties). It does
+DEP-007, DEP-010, DEP-015 and DEP-019, in the [requirements](requirements.md#deployment-duties). It does
 not cover what to do when a write fails (DEP-016).
 
 ## 2. Roles
@@ -92,10 +92,15 @@ each report lists the limits it used.
    gives weak figures. Look into **execution refused for other reasons** and **real executions
    that failed**, under **[FILL: your error-handling procedure]**: someone checks the target
    system after a failed write.
-3. **The thresholds.** Each is a breach, within its limit, or **not enough data, which is not a
+3. **Voided planted errors,** where the report shows any: how many results were left out, as
+   catches and misses, and the catch rate with and without them. **Never quote the figure
+   without them unless you give the other with it.** Check each void since the last review
+   against its quality record, and ask whether the same fault exists in planted errors that
+   were not voided (DEP-019).
+4. **The thresholds.** Each is a breach, within its limit, or **not enough data, which is not a
    pass**. "Withheld" means the figure would describe one person.
-4. **Workload and attention,** before drawing any conclusion about people.
-5. **By version of the AI system and by site,** where shown.
+5. **Workload and attention,** before drawing any conclusion about people.
+6. **By version of the AI system and by site,** where shown.
 
 **Chance.** Read the likely range beside each rate. A flag is a reason to look, not a finding.
 With 10 planted errors, a reviewer whose real catch rate is 90% falls below an 80% target about
@@ -119,6 +124,7 @@ training, a change in the AI system, or a poor planted error.
 | Over 98% agreement while catch rate falls | Approving on habit. Changes in the AI system's output | **[FILL]** |
 | Catch rate 20 points lower late in sessions | Session length, breaks and the order of work. The session is worked out from decision times, not shifts | **[FILL]** |
 | Daily load above your cap, if set | Staffing and distribution of work | **[FILL]** |
+| Voided results: a check would be breached with them and is not without them, or more than 10% of results are voided | Why each was voided, who requested and confirmed it, whether the voids fall mostly on misses, and why faulty planted errors passed approval | **[FILL]** |
 | A safety check stopped execution | **Urgent.** Run `rp verify`. Find out what was attempted, and whether the target system changed | **[FILL]** |
 
 After a change made to fix a finding, say how and when you will check that it worked.
@@ -135,6 +141,7 @@ recorded before the new value is used (DEP-015). Keep the earlier reports.
 | Verification result, and where the head was stored | |
 | Report file, and settings version | |
 | Planted-error program: findings | |
+| Voids since the last review: number, reasons, catches and misses left out, who requested and confirmed, quality records checked | |
 | Breaches, and measures that could not be judged | |
 | Systems causes considered | |
 | Decisions, actions, owners and dates | |
@@ -202,8 +209,9 @@ rp report --since 4w --individuals --out individuals.html
   and hold queue-level findings only.
 - A queue's, version's or site's figure that rests on one reviewer with fewer planted errors
   than the minimum is withheld, with the checks made from it. Counts of work done are shown.
+- Figures that show how voided results were decided are withheld under the same rule.
 - **Subtraction can still reveal a hidden figure,** from a total and its other parts, from two
-  reports with different periods, or from a group's figure and the other members'. In a small
+  reports with different periods or made before and after a void, or from a group's figure and the other members'. In a small
   team, a queue-level figure may point to a person. Limit who sees any report.
 - **The minimum applies only to ReviewProof's reports.** Anyone who can read the databases can
   work out anything about anyone. So can anyone running `planted_records.py uses`.

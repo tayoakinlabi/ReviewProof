@@ -6,7 +6,7 @@ Both salts are random per item and stored only in ``planted.db``.
 from __future__ import annotations
 
 import secrets
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from reviewproof.canonical import canonical_json, sha256_hex
@@ -93,6 +93,16 @@ def qualification_commitment(
         fingerprint,
     ]
     return sha256_hex(canonical_json(record))
+
+
+def void_commitment(record: Sequence[str], salt: bytes, fingerprint: str) -> str:
+    """Fix a void and the planted error it voids in the log, naming neither (ADR-008).
+
+    ``record`` is the void's ID, planted error ID, reason, explanation, reference, requester,
+    request time, confirmer and confirmation time, in that order.
+    """
+    _check_salt(salt)
+    return sha256_hex(canonical_json(["planted-void", *record, salt.hex(), fingerprint]))
 
 
 def judgment_hash(judgment_text: str, salt: bytes) -> str:

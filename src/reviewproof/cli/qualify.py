@@ -136,6 +136,17 @@ def _status(args: argparse.Namespace, qualification) -> int:
     print(f"{args.reviewer}: {state.status.value.replace('_', ' ')}")
     if state.session_id:
         print(f"  passed session {state.session_id} on {state.passed_at[:10]}")
+    if state.voided:
+        print(
+            f"  {state.voided} planted error(s) in that session have since been voided. Of the "
+            f"{state.still_counting} that still count, {state.still_caught} were caught; the "
+            f"pass mark is {state.mark}."
+        )
+        if state.still_caught < state.mark:
+            print("  So that pass no longer counts. The recorded result is unchanged.")
+    others = [s for s in state.affected if s != state.session_id]
+    if others:
+        print(f"  Other sessions with a voided planted error: {', '.join(others)}")
     return common.EXIT_OK
 
 

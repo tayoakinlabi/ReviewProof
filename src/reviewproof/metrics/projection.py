@@ -83,6 +83,9 @@ class ItemRecord:
     blocked_reasons: tuple[str, ...] = ()
     #: For a decided planted item: was it the decider's first sight of that planted error?
     first_sight: bool | None = None
+    #: Why the planted error behind it was voided as faulty, if it was (ADR-008). A voided
+    #: item counts as work done, and in no score.
+    voided: str | None = None
 
     @property
     def planted(self) -> bool:
@@ -163,7 +166,8 @@ def project(
             ]
         finally:
             oversight.execute("COMMIT")
-        return _fold(events, _planted_items(planted), result.head)
+        voided = {name: void.reason.value for name, void in result.voids.items()}
+        return _fold(events, _planted_items(planted), result.head, voided)
     except sqlite3.Error as error:
         raise StoreError(f"cannot read the evidence: {error}") from error
 
@@ -180,6 +184,7 @@ def _fold(
     events: Iterable[dict],
     planted: dict[str, tuple[str, DefectClass, str]],
     head: Head,
+    voided: dict[str, str],
 ) -> Projection:
     items: dict[str, dict] = {}
     contexts: dict[str, Context] = {}
@@ -216,6 +221,7 @@ def _fold(
                     planted_error_id=planted_error_id,
                     defect_class=defect_class,
                     defect_field=defect_field,
+                    voided=voided.get(planted_error_id),
                 )
             items[item_id] = entry
         elif item_id in items:

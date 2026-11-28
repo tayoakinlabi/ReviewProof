@@ -83,3 +83,7 @@ counts as not passed.
 - ReviewProof **does not stop** an unqualified person reviewing. Your application or procedure
   must do that.
 - `rp verify --planted planted.db` checks that no session's items or result has been changed.
+- **A voided planted error** ([`rp plant void`](../cli.md#rp-plant-void)) does not change a
+  session's recorded result, but a pass then counts only if the original `min_caught` is met
+  without it. A fail never becomes a pass. **A mark that requires every planted error leaves no
+  room:** one void ends every pass that included it.

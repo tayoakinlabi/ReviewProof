@@ -11,9 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from reviewproof import mutators
+from reviewproof.api import Oversight
 from reviewproof.cli import common
 from reviewproof.config import Config, ConfigError, load_config
+from reviewproof.errors import OversightError
 from reviewproof.itemschema import SchemaError
+from reviewproof.models import VoidReason
 from reviewproof.planted import (
     ApprovalError,
     PlantedError,
@@ -23,10 +26,14 @@ from reviewproof.planted import (
     UnknownPlantedError,
     approvals_needed,
 )
-from reviewproof.store.schema import StoreError, open_planted_db
+from reviewproof.store.eventlog import voids_in_effect
+from reviewproof.store.schema import StoreError, open_planted_db, open_readonly
+from reviewproof.store.void_check import read_voids
 from reviewproof.strictload import LoadError, load_file
+from reviewproof.voids import VoidState, state_of
 
 _ERRORS = (
+    OversightError,
     ConfigError,
     StoreError,
     SchemaError,
@@ -76,7 +83,28 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     retire.add_argument("--by", required=True, help="who is retiring it")
     retire.add_argument("--reason", help="for example: a reviewer suspected it")
 
+    def void_action(name: str, help_text: str, run: Callable):
+        parser = action(name, help_text, run)
+        parser.add_argument("planted_error_id", metavar="ID")
+        parser.add_argument("--db", default="oversight.db", help="default: %(default)s")
+        parser.add_argument("--by", required=True, help="who is doing this; not verified")
+        return parser
+
+    voider = void_action(
+        "void", "ask to void a faulty planted error; nothing changes until confirmed", _void
+    )
+    voider.add_argument("--reason", required=True, choices=[r.value for r in VoidReason])
+    voider.add_argument("--explanation", required=True, help="what is wrong with it")
+    voider.add_argument("--reference", required=True, help="your quality record")
+    void_action(
+        "void-confirm",
+        "confirm someone else's request: all its results leave the scores, permanently",
+        _void_confirm,
+    )
+    void_action("void-cancel", "drop a request that is not in effect", _void_cancel)
+
     lister = action("list", "list planted errors and their status, without their content", _list)
+    lister.add_argument("--db", default="oversight.db", help="to see voids in effect")
     lister.add_argument("--queue")
     lister.add_argument("--status", choices=[s.value for s in Status])
 
@@ -169,14 +197,76 @@ def _retire(args: argparse.Namespace, config: Config) -> int:
     return common.EXIT_OK
 
 
+def _with_voids(args: argparse.Namespace, config: Config, step: Callable) -> int:
+    """Open the planted error's queue, which writing a void needs, and take one step."""
+    with _library(args, config) as connection:
+        queue = PlantedLibrary(connection, config).get(args.planted_error_id).queue
+    with Oversight(config, queue, args.db, args.planted) as oversight:
+        step(oversight.voids())
+    return common.EXIT_OK
+
+
+def _void(args: argparse.Namespace, config: Config) -> int:
+    def step(voids) -> None:
+        voids.request(args.planted_error_id, args.by, args.reason, args.explanation, args.reference)
+        print(
+            f"{args.planted_error_id}: void requested. Nothing has changed. A different person "
+            "must run rp plant void-confirm."
+        )
+
+    return _with_voids(args, config, step)
+
+
+def _void_confirm(args: argparse.Namespace, config: Config) -> int:
+    def step(voids) -> None:
+        voids.confirm(args.planted_error_id, args.by)
+        print(f"{args.planted_error_id}: voided. All its results are now left out of scores.")
+        print(
+            "Reports show what was left out. Check rp qualify status for anyone whose session "
+            "held it, and list who met it with planted_records.py in the validation pack."
+        )
+
+    return _with_voids(args, config, step)
+
+
+def _void_cancel(args: argparse.Namespace, config: Config) -> int:
+    def step(voids) -> None:
+        voids.cancel(args.planted_error_id, args.by)
+        print(f"{args.planted_error_id}: the request to void it is cancelled.")
+
+    return _with_voids(args, config, step)
+
+
+def _void_marks(args: argparse.Namespace, connection) -> dict[str, str]:
+    """What to show beside each planted error that has a void or a request for one."""
+    pending = [void for void in read_voids(connection) if void.cancelled_by is None]
+    if not pending:
+        return {}
+    try:
+        with closing(open_readonly(args.db, "oversight")) as oversight:
+            in_effect = voids_in_effect(oversight, connection)
+    except StoreError as error:
+        # Never guess: without the log, no void is known to be in effect.
+        print(f"note: cannot tell which voids are in effect: {error}", file=sys.stderr)
+        return {void.planted_error_id: "void recorded: not checked" for void in pending}
+    words = {
+        VoidState.IN_EFFECT: "VOIDED",
+        VoidState.AWAITING_CONFIRMATION: "void awaiting confirmation",
+        VoidState.NOT_COMPLETED: "void not completed: the confirmer must confirm again",
+    }
+    return {void.planted_error_id: words[state_of(void, in_effect)] for void in pending}
+
+
 def _list(args: argparse.Namespace, config: Config) -> int:
     with _library(args, config) as connection:
         library = PlantedLibrary(connection, config)
+        marks = _void_marks(args, connection)
         shown = 0
         for planted in library.all(args.queue):
             if args.status and library.status(planted).value != args.status:
                 continue
-            print(_describe(library, config, planted))
+            mark = marks.get(planted.planted_error_id)
+            print(_describe(library, config, planted) + (f"  [{mark}]" if mark else ""))
             if library.status(planted) is Status.APPROVED:
                 for problem in library.problems(planted):
                     print(f"    held back: {problem}")

@@ -14,6 +14,7 @@ policy.
 from __future__ import annotations
 
 import sqlite3
+from collections import Counter
 from collections.abc import Sequence
 from contextlib import closing
 from dataclasses import dataclass
@@ -21,16 +22,22 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from reviewproof.config import Config, QueueConfig, Thresholds
+from reviewproof.feedback import Outcome
 from reviewproof.metrics.checks import Check, Flag, evaluate, reviewer_flags
 from reviewproof.metrics.measures import (
+    Hides,
     Place,
     Summary,
+    as_recorded,
+    catch_rate,
+    left_out,
     one_reviewer_rule,
     scored,
     sessions,
     summarise,
 )
 from reviewproof.metrics.projection import ItemRecord, Projection, parse_time
+from reviewproof.metrics.stats import Rate
 from reviewproof.planted import PlantedLibrary
 from reviewproof.store.eventlog import Head
 from reviewproof.store.schema import StoreError, open_readonly
@@ -41,12 +48,31 @@ class ReportError(ValueError):
 
 
 @dataclass(frozen=True)
+class Voided:
+    """What voided planted errors take out of one set of figures, shown beside them so that a
+    void never makes results look better without saying so (ADR-008). It names none.
+    """
+
+    #: Planted errors voided that had results in these figures, and the reason for each.
+    planted_errors: int
+    reasons: dict[str, int]
+    #: Results left out of every score.
+    results: int
+    #: Of those, how many were catches. Withheld if it would describe one person.
+    left_out: Rate
+    #: The catch rate with them included. Withheld together with ``left_out``, because one
+    #: would give away the other.
+    with_them: Rate
+
+
+@dataclass(frozen=True)
 class Group:
     """Results for some set of items: a version of the AI system, or a site."""
 
     label: str
     #: Its figures say whether they were withheld to protect a single reviewer.
     summary: Summary
+    voided: Voided | None = None
 
     @property
     def withheld(self) -> bool:
@@ -64,6 +90,10 @@ class ReviewerResult:
     #: None when there are too few planted errors to show anything about this person's work.
     summary: Summary | None
     flags: tuple[Flag, ...] = ()
+    #: Its rates are withheld when too few results are left to show anything about them.
+    voided: Voided | None = None
+    #: What would be flagged with voided results included, if that differs from ``flags``.
+    flags_with_voided: tuple[Flag, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +123,7 @@ class QueueReport:
     programme: Programme
     #: None unless individual results were asked for.
     reviewers: tuple[ReviewerResult, ...] | None
+    voided: Voided | None = None
 
     @property
     def withheld(self) -> bool:
@@ -156,7 +187,11 @@ def build(
 
     def group(label: str, records: list[ItemRecord]) -> Group:
         hides = one_reviewer_rule(records, floor)
-        return Group(label, summarise(records, places, minimum, hides))
+        return Group(
+            label,
+            summarise(records, places, minimum, hides),
+            voided_summary(records, hides),
+        )
 
     def label_of(system_id: str) -> str:
         context = projection.contexts.get(system_id)
@@ -182,6 +217,25 @@ def build(
         by_site=by_site,
         head=projection.head,
         anchored=anchored,
+    )
+
+
+def voided_summary(records: Sequence[ItemRecord], hides: Hides) -> Voided | None:
+    """What voids leave out of the figures for ``records``, or None if they leave out nothing."""
+    excluded = left_out(records)
+    if not excluded:
+        return None
+    reason_of = {r.planted_error_id: r.voided for r in excluded}
+    everything = as_recorded(records)
+    # Beside the figure without them, either of these would give away the other.
+    private = hides(scored(records)) or hides(excluded)
+    caught = [r.outcome is Outcome.CATCH for r in excluded]
+    return Voided(
+        planted_errors=len(reason_of),
+        reasons=dict(sorted(Counter(reason_of.values()).items())),
+        results=len(excluded),
+        left_out=Rate.hidden() if private else Rate.of(caught),
+        with_them=Rate.hidden() if private else catch_rate(everything),
     )
 
 
@@ -252,6 +306,7 @@ def _queue(
         checks=tuple(checks),
         programme=programme,
         reviewers=reviewers,
+        voided=voided_summary(records, hides),
     )
 
 
@@ -264,6 +319,14 @@ def _reviewer(
 ) -> ReviewerResult:
     summary = summarise(records, places, minimum)
     flags = reviewer_flags(records, minimum, limits)
+    # With too few results left to show anything about this person, what was left out is
+    # withheld too.
+    voided = voided_summary(records, lambda basis: flags is None)
+    with_voided = None
+    if voided is not None and flags is not None:
+        with_voided = tuple(reviewer_flags(as_recorded(records), minimum, limits) or ())
+        if with_voided == tuple(flags):
+            with_voided = None
     return ReviewerResult(
         reviewer=name,
         decided=summary.decided,
@@ -272,6 +335,8 @@ def _reviewer(
         max_per_day=summary.load.max_per_day,
         summary=None if flags is None else summary,
         flags=tuple(flags or ()),
+        voided=voided,
+        flags_with_voided=with_voided,
     )
 
 

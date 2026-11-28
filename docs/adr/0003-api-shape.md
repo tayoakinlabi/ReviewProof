@@ -1,6 +1,6 @@
 # ADR-003: API shape, planted errors and the guard
 
-- **Status:** Accepted
+- **Status:** Accepted. Parts are changed by [ADR-008](0008-voiding-planted-errors.md) (voiding).
 - **Date:** 2026-11-25
 - **Amended:** 2026-11-26 (what the reserved target range protects against; planted errors
   are reused; a due planted error is released at once, not after a delay; ticket field order;

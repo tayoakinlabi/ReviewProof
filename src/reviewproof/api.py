@@ -70,6 +70,7 @@ from reviewproof.store.schema import (
     open_oversight_db,
     open_planted_db,
 )
+from reviewproof.voids import Voids
 
 _log = logging.getLogger("reviewproof")
 
@@ -177,6 +178,10 @@ class Oversight:
     def qualification(self) -> Qualification:
         """Qualification sessions for this queue: seeded-defect tests of a reviewer."""
         return Qualification(self)
+
+    def voids(self) -> Voids:
+        """Voiding faulty planted errors on this queue (ADR-008). For QA administration."""
+        return Voids(self)
 
     @property
     def planted(self) -> PlantedLibrary:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Container, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -11,7 +11,7 @@ from typing import Any
 from reviewproof.models import Decision, DefectClass, EventType
 from reviewproof.planted import PlantedLibrary
 from reviewproof.records import ItemRef, Records
-from reviewproof.store.eventlog import IntegrityError, item_events
+from reviewproof.store.eventlog import IntegrityError, item_events, voids_in_effect
 from reviewproof.store.registry import commitment_of, read_entry
 from reviewproof.store.schema import StoreError
 
@@ -60,7 +60,9 @@ def collect(
     """
     with records.log.transaction():
         found = []
-        for item_id in _awaiting(records, planted, reviewer):
+        # Nothing is said about a voided planted error: its result measures nothing.
+        voided = voids_in_effect(records.db, planted)
+        for item_id in _awaiting(records, planted, reviewer, voided):
             events = {e["type"]: e for e in item_events(records.db, item_id)}
             submitted = events[EventType.SUBMITTED.value]
             decided = events[EventType.DECIDED.value]
@@ -92,16 +94,21 @@ def collect(
     return found
 
 
-def _awaiting(records: Records, planted: sqlite3.Connection, reviewer: str) -> list[str]:
-    """Planted items this reviewer decided on, with no feedback sent, in decision order."""
+def _awaiting(
+    records: Records, planted: sqlite3.Connection, reviewer: str, voided: Container[str]
+) -> list[str]:
+    """Planted items this reviewer decided on, with no feedback sent, in decision order,
+    leaving out voided planted errors.
+    """
     try:
         ids = [
             row[0]
             for row in planted.execute(
-                "SELECT r.item_id FROM item_registry r JOIN planted_errors p "
+                "SELECT r.item_id, r.planted_error_id FROM item_registry r JOIN planted_errors p "
                 "ON p.planted_error_id = r.planted_error_id WHERE p.queue_id = ?",
                 (records.queue,),
             )
+            if row[1] not in voided
         ]
     except sqlite3.Error as error:
         raise StoreError(f"cannot read the item registry: {error}") from error

@@ -14,6 +14,9 @@ import pytest
 from deploy import EXAMPLES, submit_until_pair
 from qual_support import load_pool, plan, sit
 
+from reviewproof import initialise
+from reviewproof.store import schema
+
 ROOT = Path(__file__).parents[1]
 _SPEC = importlib.util.spec_from_file_location(
     "planted_records", ROOT / "validation-pack" / "planted_records.py"
@@ -111,6 +114,45 @@ def test_a_waiting_live_copy_names_the_reviewer_if_the_application_did(make, cap
     assert [(r["use"], r["reviewer"], r["what_happened"]) for r in rows] == [
         ("live", named or "", "nothing recorded")
     ]
+
+
+def test_every_void_is_listed_with_what_became_of_it(make, capsys):
+    deployment = make(rate=0.001)
+    ov = deployment.open()
+    pool = load_pool(ov, range(12))
+    qualification = ov.qualification()
+    sit(qualification, qualification.start("r-7", plan(pool)))
+    voids = ov.voids()
+    voids.request(pool[0], "qa-1", "not_defective", "=cmd()", "DEV-1")
+    voids.confirm(pool[0], "qa-lead")
+    voids.request(pool[1], "qa-1", "not_findable", "second", "DEV-2")
+    voids.cancel(pool[1], "qa-8")
+    voids.request(pool[2], "qa-1", "more_than_one_defect", "third", "DEV-3")
+    files = (deployment.db, deployment.planted_db)
+    before = [path.read_bytes() for path in files]
+
+    status, rows, _ = run(capsys, "voids", *files)
+
+    assert status == 0
+    assert [(r["planted_error_id"], r["state"], r["reason"]) for r in rows] == [
+        (pool[0], "in_effect", "not_defective"),
+        (pool[1], "cancelled", "not_findable"),
+        (pool[2], "awaiting_confirmation", "more_than_one_defect"),
+    ]
+    first, second, _third = rows
+    assert (first["requested_by"], first["confirmed_by"]) == ("qa-1", "qa-lead")
+    assert second["cancelled_by"] == "qa-8" and second["confirmed_by"] == ""
+    assert first["explanation"] == "'=cmd()"  # never a spreadsheet formula
+    assert [path.read_bytes() for path in files] == before
+
+
+def test_a_database_not_yet_upgraded_has_no_voids(tmp_path, monkeypatch, capsys):
+    with monkeypatch.context() as old:
+        old.setattr(schema, "OVERSIGHT_MIGRATIONS", schema.OVERSIGHT_MIGRATIONS[:3])
+        old.setattr(schema, "PLANTED_MIGRATIONS", schema.PLANTED_MIGRATIONS[:2])
+        initialise(tmp_path / "oversight.db", tmp_path / "planted.db")
+    status, rows, _ = run(capsys, "voids", tmp_path / "oversight.db", tmp_path / "planted.db")
+    assert status == 0 and rows == []
 
 
 def test_it_changes_neither_database(golden, capsys):

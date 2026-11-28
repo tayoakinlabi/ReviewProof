@@ -67,11 +67,57 @@ Stop using a planted error, permanently.
 
 Options: `--config`, `--planted`, `--by`, `--reason`.
 
+Retiring leaves the planted error's past results in every score. If it was faulty, void it.
+
+## `rp plant void`
+
+Ask to void a **faulty** planted error ([ADR-008](adr/0008-voiding-planted-errors.md)).
+**Nothing changes** until a different person confirms. It must have been released or put in a
+session. `--reason` is one of:
+
+| Reason | Meaning |
+| --- | --- |
+| `not_defective` | The item was correct |
+| `more_than_one_defect` | It had another defect, so a right decision could be scored as a miss |
+| `wrong_expected_decision` | The decision, or the defect field, that scores as a catch was not what procedures require |
+| `not_findable` | What was needed to find the defect was neither on screen nor in any record the reviewer is expected to check |
+
+That it was hard, widely missed or recognisable is not a reason.
+
+Options: `--config`, `--db`, `--planted`, `--by`, `--reason`, `--explanation`,
+`--reference` (your quality record).
+
+```bash
+rp plant void PE-0012 --by qa-lead-1 --reason not_defective --explanation "The dose was right" --reference DEV-0412
+```
+
+## `rp plant void-confirm`
+
+Confirm someone else's request. **All the planted error's results then leave every score, catches
+and misses alike, and this cannot be undone.** It is also retired. At least one of the two people
+must be someone who neither wrote nor approved it, and neither may be an ID recorded as a
+reviewer who was shown it, decided on it or sat a session holding it. **ReviewProof cannot
+verify who is typing.** If it fails partway, the same person runs it again.
+
+Options: `--config`, `--db`, `--planted`, `--by`.
+
+```bash
+rp plant void-confirm PE-0012 --by qa-head
+```
+
+## `rp plant void-cancel`
+
+Drop a request that is not in effect.
+
+Options: `--config`, `--db`, `--planted`, `--by`.
+
 ## `rp plant list`
 
-List planted errors, their status and any that are held back. It never shows their content.
+List planted errors, their status, any that are held back, and any void or request for one.
+It never shows their content.
 
-Options: `--config`, `--planted`, `--queue`, `--status`.
+Options: `--config`, `--db` (to see which voids are in effect), `--planted`, `--queue`,
+`--status`.
 
 ## `rp plant draft`
 
@@ -110,7 +156,9 @@ Options: `--config`, `--db`, `--planted`, `--queue`.
 
 ## `rp qualify status`
 
-Show whether a reviewer is qualified for the queue's current version of the AI system.
+Show whether a reviewer is qualified for the queue's current version of the AI system. If a
+planted error in their session has been voided, it says how many of the rest they caught,
+and whether the pass still counts.
 
 Options: `--config`, `--db`, `--planted`, `--queue`, `--reviewer`.
 
@@ -141,8 +189,8 @@ sent again on the next run. Choose the schedule with that in mind, for example w
 
 ## `rp verify`
 
-Check that the log has not been changed. With `--planted` it also checks the item records.
-The databases are opened read-only.
+Check that the log has not been changed. With `--planted` it also checks the item records
+and every void, and says how many voids are in effect. The databases are opened read-only.
 
 Options: `--db`, `--planted`, `--expect-head`, `--export-head` (never overwrites a file).
 
@@ -162,6 +210,7 @@ reporting:
   fast_approval_share_max: 0.20   # in any one week
   agreement_rate_max: 0.98        # alerts only while the catch rate is falling
   fatigue_drop_max: 0.20          # second half of sessions against the first
+  voided_share_max: 0.10          # share of planted-error results voided
   min_sample: 10                  # fewest examples before a rule is judged
   rolling_window: 50
   session_gap_minutes: 30
@@ -196,6 +245,30 @@ makes no network call unless you set a route and run `rp alerts --send`.
 | Early and late | The first and second half of each session. The middle item of an odd number is early. |
 | Day and week | UTC calendar days and ISO weeks. |
 | Range | The 95% Wilson interval. |
+
+## Voided planted errors
+
+A [voided](#rp-plant-void) planted error's results are left out of the catch rate, each kind of
+defect, catch rates through a session, the catch trend in the agreement check, repeat
+sightings, individual scores and flags, the minimum of 10, and every threshold made from these.
+They still count in workload, fast approvals and review time. This applies to every report made
+afterwards, whatever its period. Feedback not yet given about it is not given.
+
+**Voiding must never make results look better without saying so.** Wherever voided results
+affect a queue, a report shows how many planted errors and results were left out, as catches
+and misses, the reasons, and the catch rate with them beside the one without. Group tables and
+individual results show both. A **"Voided results"** check is a breach, and so reaches the QA
+lead, when:
+
+- a catch rate, kind of error, agreement or fatigue check would be a breach with the voided
+  results but is not without them, **including because too little is left to judge it**; or
+- more than `voided_share_max` of the planted-error results are voided, judged from
+  `min_sample`.
+
+**A small program may get no warning.** The figures that show how voided results were decided
+are figures about people. When they rest on one reviewer with too few other planted errors,
+which is likely early on, they are withheld, and the check is shown as withheld rather than as
+a breach. The count of results left out is still shown, and the share limit still applies.
 
 **One person's figures.** A queue's, version's or site's figure that rests on one reviewer
 with fewer than `individual_min_planted` planted errors in the report is that person's figure,

@@ -24,7 +24,7 @@ regulated work.
 
 Two more scripts help with what the `rp` commands do not do:
 [`planted_records.py`](planted_records.py) lists who wrote, approved and retired each planted
-error, and who met a given one; [`make_tampered_copies.py`](make_tampered_copies.py) makes
+error, who met a given one, and every void; [`make_tampered_copies.py`](make_tampered_copies.py) makes
 damaged copies for one of the test scripts.
 
 **A tag is not proof.** The matrix shows which tests were written for a requirement. A record
