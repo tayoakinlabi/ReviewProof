@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "reviewproof"
 dynamic = ["version"]
-description = "Rubber-stamp detector for AI oversight: proves whether human reviewers of AI output catch errors."
+description = "Rubber-stamp detector for AI oversight: tests whether human reviewers of AI output catch errors."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]

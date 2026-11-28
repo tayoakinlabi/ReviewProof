@@ -3,11 +3,18 @@
 ReviewProof uses semantic versions. Before 1.0.0, any release may change the API or the
 database format. Each release says what a validated user would need to retest.
 
-## Unreleased
+## 0.2.0 (2026-11-28)
+
+Adds metrics and reports, reviewer qualification, voiding of faulty planted errors, drafting
+from exported real output, adapters for five agent libraries, and a draft validation pack.
+**Pre-release: not for production use, and not pre-validated.** No outside quality or privacy
+specialist has reviewed it, and the method has not been tried on a real review queue. **Read
+[change impact](#change-impact) before upgrading.**
 
 ### Fixed
 
-These concern reporting code that no release contains yet.
+No earlier release had reporting code. This concerns only reports made from the repository's
+source.
 
 - A report on a queue, version or site whose figures rested on one reviewer with too few
   planted errors withheld their scores, but still showed their share of fast approvals,
@@ -87,10 +94,10 @@ and check each queue's planted share.
 **A `vital_base_risk` above `A10`, such as `A11` or `A55`, is now refused.** 0.1.0 accepted
 it and gave it the top share. Correct such settings before installing.
 
-**The validation pack's REQ-005 has changed.** It now says that ReviewProof never reads a
-queue or its databases to make a planted error, because a file you export may hold items that
-were submitted for review. If you adapted the earlier wording, assess the change. If you use
-`rp craft`, first meet the new deployment duty DEP-020.
+**If you adapted the validation pack from the repository before this release, assess its new
+REQ-005.** It now says that ReviewProof never reads a queue or its databases to make a planted
+error, because a file you export may hold items that were submitted for review. If you use
+`rp craft`, first meet deployment duty DEP-020.
 
 The new figures, reports and qualification results need testing against their intended
 use. See [ADR-004](docs/adr/0004-metrics-and-reports.md) and

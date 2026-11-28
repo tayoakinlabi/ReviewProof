@@ -4,8 +4,9 @@ For the validation lead and quality unit of an organisation that wants to use Re
 regulated work.
 
 > **Status: draft.** ReviewProof is **not pre-validated**, and this pack does
-> not validate it for you. No outside quality specialist has reviewed it yet. It describes the
-> source code in this repository, which is **newer than the latest release on PyPI**.
+> not validate it for you. No outside quality specialist has reviewed it yet. It describes
+> the code that comes with it. **Use the copy tagged for the release you install:** the copy on
+> the main branch may describe newer, unreleased code.
 
 ## What is here
 
